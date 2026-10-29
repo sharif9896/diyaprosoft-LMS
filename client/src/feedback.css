@@ -1,0 +1,53 @@
+/* Exam status colors are shared by the question buttons and their legend. */
+.question-grid button{position:relative;background:#fff0f0;color:#b52d3d;border-color:#efb1ba;font-weight:650;transition:background .18s,border-color .18s,box-shadow .18s}
+.question-grid button.unanswered{border-style:dashed}
+.question-grid button.answered{background:#e2f7ec;color:#146b45;border:1px solid #83cfa7}
+.question-grid button.review{background:#fff4c9;color:#845b08;border:1px solid #e6bd49}
+.question-grid button.current{outline:2px solid #34415c;outline-offset:3px;box-shadow:0 0 0 5px #fff}
+.question-grid button:hover{filter:brightness(.97)}
+.question-state-icon{position:absolute;right:2px;top:2px;stroke-width:2.5}
+.question-key{color:#656b7b;gap:12px}
+.question-key .key-box{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.question-key .key-box.answered{background:#bceace;border:1px solid #4da976}
+.question-key .key-box.unanswered{background:#ffdce1;border:1px dashed #d15e71}
+.question-key .key-box.review{background:#ffe89a;border:1px solid #cca12c}
+.question-navigator .mini-progress>i{background:#25a46c;transition:width .25s ease}
+.question-tools .text-link.flagged{color:#946b11}
+.submit-summary,.submit-summary strong{color:#198355}
+.submit-summary span{color:#707889}
+
+/* Animated completion dialogs. All confirmation copy follows a server response. */
+.feedback-dialog{--feedback-color:#148357;--feedback-soft:#e2f6eb;width:440px;border:1px solid #d9eee3;border-radius:22px;background:radial-gradient(ellipse at 50% 20%,#f0fcf5 0%,#fff 64%);box-shadow:0 28px 90px #142b2938}
+.feedback-dialog[open]{animation:feedback-enter .38s cubic-bezier(.2,.8,.2,1) both}
+.feedback-dialog::backdrop{background:#15293a73;backdrop-filter:blur(5px)}
+.feedback-dialog .modal-head{border:0;background:transparent;padding:25px 25px 0;align-items:flex-start;position:static}
+.feedback-dialog .modal-head .eyebrow{color:var(--feedback-color);font-size:9px;letter-spacing:1.5px}
+.feedback-dialog .modal-head h2{font-size:23px;line-height:1.3;color:#283b35;margin-top:7px;letter-spacing:-.6px}
+.feedback-dialog .modal-head .icon-btn{margin:-6px -8px 0 8px}
+.feedback-content{padding:8px 27px 26px;text-align:center}
+.feedback-art{position:relative;display:grid;place-items:center;width:160px;height:160px;margin:0 auto 2px}
+.feedback-halo{position:absolute;width:120px;height:120px;border:1px solid color-mix(in srgb,var(--feedback-color) 14%,transparent);border-radius:50%;background:var(--feedback-soft);animation:feedback-halo .85s ease-out both}
+.feedback-halo:after{content:'';position:absolute;inset:-13px;border:1px dashed color-mix(in srgb,var(--feedback-color) 20%,transparent);border-radius:50%}
+.feedback-symbol{z-index:1;display:grid;place-items:center;width:82px;height:82px;border-radius:50%;color:#fff;background:var(--feedback-color);box-shadow:0 8px 22px color-mix(in srgb,var(--feedback-color) 24%,transparent),inset 0 1px 0 #ffffff45;animation:feedback-symbol .5s .08s cubic-bezier(.2,1.4,.4,1) both}
+.feedback-check{width:51px;height:51px}
+.feedback-check path{stroke-dasharray:40;stroke-dashoffset:0;animation:feedback-draw .45s .3s ease both}
+.feedback-confetti{position:absolute;left:calc(50% - 3px);top:calc(50% - 3px);width:6px;height:9px;border-radius:2px;background:var(--piece-color);opacity:0;animation:feedback-confetti 1s var(--delay) ease-out both;pointer-events:none}
+.feedback-confetti:nth-child(3n){height:6px;border-radius:50%}
+.feedback-description{font-size:13px;line-height:1.8;color:#707d77;max-width:350px;margin:0 auto}
+.feedback-stats{display:grid;grid-template-columns:repeat(var(--stat-columns),minmax(0,1fr));margin:22px 0;gap:10px}
+.feedback-stats>div{display:flex;flex-direction:column;justify-content:center;gap:6px;background:#ffffffb8;border:1px solid #e3ece7;border-radius:11px;padding:15px 6px;min-width:0}
+.feedback-stats strong{font-family:'Manrope',sans-serif;font-size:20px;color:#344b40;overflow-wrap:anywhere}
+.feedback-stats span{font-size:10px;color:#84928a}
+.feedback-continue.btn.primary{margin-top:22px;width:100%;background:var(--feedback-color);border-color:var(--feedback-color);font-size:12px;min-height:43px;box-shadow:0 4px 12px color-mix(in srgb,var(--feedback-color) 18%,transparent)}
+.feedback-stats+.feedback-continue{margin-top:0}
+.feedback-continue.btn.primary:hover{filter:brightness(.94)}
+.feedback-note{font-size:10px;line-height:1.6;color:#97a29b;margin-top:13px}
+.feedback-warning{--feedback-color:#b37c13;--feedback-soft:#fff2cf;border-color:#f0dfaf;background:radial-gradient(ellipse at 50% 20%,#fff9e8 0%,#fff 64%)}
+.feedback-error{--feedback-color:#c34758;--feedback-soft:#ffe5e9;border-color:#f2d7dd;background:radial-gradient(ellipse at 50% 20%,#fff0f3 0%,#fff 64%)}
+@keyframes feedback-enter{from{opacity:0;transform:translateY(16px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes feedback-symbol{from{opacity:0;transform:scale(.65)}to{opacity:1;transform:scale(1)}}
+@keyframes feedback-halo{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
+@keyframes feedback-draw{from{stroke-dashoffset:40}to{stroke-dashoffset:0}}
+@keyframes feedback-confetti{0%{opacity:0;transform:rotate(var(--angle)) translateY(-25px) rotate(0)}15%{opacity:1}100%{opacity:0;transform:rotate(var(--angle)) translateY(calc(-1 * var(--travel))) rotate(100deg)}}
+@media(max-width:480px){.feedback-dialog{width:calc(100vw - 30px);border-radius:18px}.feedback-dialog .modal-head{padding:22px 21px 0}.feedback-dialog .modal-head h2{font-size:21px}.feedback-content{padding:5px 22px 23px}.feedback-art{width:145px;height:145px}.feedback-description{font-size:12px}.feedback-stats{gap:7px}.feedback-stats strong{font-size:18px}.question-grid button.current{outline-offset:2px}}
+@media(prefers-reduced-motion:reduce){.feedback-dialog[open],.feedback-symbol,.feedback-halo,.feedback-check path,.feedback-confetti{animation:none!important}.feedback-confetti{display:none}.question-grid button,.question-navigator .mini-progress>i{transition:none}}

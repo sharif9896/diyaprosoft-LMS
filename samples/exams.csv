@@ -1,0 +1,2 @@
+code,title,courseCode,durationMinutes,questionCount,marksPerQuestion,passPercentage,maxAttempts,startsAt,endsAt,status,assignedStudentEmails,shuffleQuestions
+WEB-TEST-01,Web Fundamentals,WEB101,30,5,2,60,2,,,draft,,true

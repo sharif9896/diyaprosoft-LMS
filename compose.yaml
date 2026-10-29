@@ -1,0 +1,28 @@
+services:
+  mongo:
+    image: mongo:8
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5000:5000"
+    env_file:
+      - server/.env
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/diyapro_lms
+      # Local HTTP only. Set production + HTTPS behind a reverse proxy for hosting.
+      NODE_ENV: development
+      CLIENT_ORIGIN: http://localhost:5000,http://127.0.0.1:5000
+    depends_on:
+      mongo:
+        condition: service_healthy
+volumes:
+  mongo-data:

@@ -1,0 +1,51 @@
+/* Dark navy accents, including native and nested scroll containers. */
+:root{accent-color:#12386b;color-scheme:light}
+*{scrollbar-width:thin;scrollbar-color:#183a67 #edf1f6}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:#edf1f6}
+::-webkit-scrollbar-thumb{background:#183a67;border:2px solid #edf1f6;border-radius:12px}
+::-webkit-scrollbar-thumb:hover{background:#0b2851}
+::-webkit-scrollbar-corner{background:#edf1f6}
+
+/* Continuous, gentle motion for the book and medal dashboard illustrations. */
+.banner-book{animation:book-drift 5.5s ease-in-out infinite}
+.banner-circle:before{animation:illustration-orbit 26s linear infinite}
+.banner-float.one{animation:card-drift 4.8s ease-in-out infinite}
+.banner-float.two{animation:card-drift 6.2s ease-in-out -2s infinite}
+.welcome-banner .spark{animation:star-glow 3.4s ease-in-out infinite}
+.welcome-banner .spark-two{animation-delay:-1.7s}
+.welcome-banner .spark-three{animation-delay:-.8s}
+.award-ring{animation:medal-drift 5s ease-in-out infinite}
+.award-ring:after{animation:illustration-orbit 22s linear infinite}
+.award-ring>svg{animation:medal-sway 4s ease-in-out infinite;transform-origin:50% 20%}
+@keyframes book-drift{0%,100%{transform:translateY(0) rotate(-13deg)}50%{transform:translateY(-12px) rotate(-7deg)}}
+@keyframes card-drift{0%,100%{translate:0 0}50%{translate:0 -9px}}
+@keyframes medal-drift{0%,100%{translate:0 0}50%{translate:0 -10px}}
+@keyframes medal-sway{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg)}}
+@keyframes illustration-orbit{to{transform:rotate(360deg)}}
+@keyframes star-glow{0%,100%{opacity:.5;scale:.85}50%{opacity:1;scale:1.15}}
+
+.instructions-title{display:flex;align-items:center;gap:13px}.instructions-title>svg{color:var(--primary);flex-shrink:0}
+.instructions-title h3,.instructions-title p{margin:0}.instructions-title p{margin-top:5px}
+.exam-instructions{padding-left:23px;line-height:1.7}.exam-instructions li{padding-left:4px;margin-bottom:10px}
+.instructions-ack{display:flex;align-items:flex-start;gap:10px;margin-top:20px;padding:15px;background:#f0f4f9;border:1px solid #c7d4e5;border-radius:9px;color:#102e55;font-weight:600;line-height:1.6;cursor:pointer}
+.instructions-ack input{flex-shrink:0;margin-top:4px;width:17px;height:17px;accent-color:var(--primary)}
+.instructions-dialog .modal-footer{position:sticky;bottom:0;z-index:2}
+
+.result-policy-panel{margin-bottom:24px}.result-policy-body{padding:24px}.result-policy-row{display:flex;gap:18px;align-items:center}
+.policy-icon{width:52px;height:52px;display:grid;place-items:center;flex-shrink:0;border-radius:14px;background:#edf1f6;color:#64748b}.policy-icon.visible{background:#e2eaf4;color:#12386b}
+.policy-description{flex:1}.policy-description h4{margin:0 0 7px;font-size:15px}.policy-description p{margin:0;max-width:620px;line-height:1.6;font-size:13px}
+.result-policy-toggle{flex-shrink:0;min-width:195px}.policy-switch{width:30px;height:18px;padding:3px;border-radius:20px;background:#ffffff44;display:inline-flex;align-items:center}.policy-switch i{display:block;width:12px;height:12px;border-radius:50%;background:white;transition:transform .2s}.policy-switch.on i{transform:translateX(12px)}
+.result-policy-body>.field-hint{margin:20px 0 0;line-height:1.7}
+.results-withheld{display:flex;align-items:flex-start;gap:12px;background:#f0f4f9;border:1px solid #c7d4e5;border-radius:10px;padding:18px;margin:0 0 24px;text-align:left;color:#12386b}.results-withheld>svg{flex-shrink:0}.results-withheld strong{font-size:14px}.results-withheld p{font-size:13px;margin:5px 0 0;line-height:1.7;color:#64748b}
+.recent-student>.results-withheld{margin:0 20px 20px}.submission-receipt .results-withheld{margin:24px auto;max-width:520px}
+.answer-review{padding:24px;border-top:1px solid #e2e8f0;text-align:left}.answer-review>h3{margin:0 0 7px}.answer-review>p{font-size:13px;margin:0 0 22px}
+.review-question{border:1px solid #e2e8f0;border-radius:10px;margin-bottom:12px;overflow:hidden}
+.review-question>summary{cursor:pointer;display:flex;align-items:flex-start;gap:12px;padding:17px;list-style:none;background:#f8fafc;line-height:1.6;font-size:14px}.review-question>summary::-webkit-details-marker{display:none}.review-question>summary>span:nth-child(2){flex:1}.review-question strong{display:block;font-size:12px;color:#64748b;margin-bottom:3px}
+.review-status{padding-top:3px}.review-status.correct{color:#146b45}.review-status.incorrect{color:#b52d3d}.review-outcome{font-size:11px;color:#64748b;white-space:nowrap}
+.review-options{padding:16px}.review-option{display:flex;align-items:center;gap:12px;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:8px;font-size:13px}.review-option>b{font-size:12px;color:#64748b}.review-option>span{flex:1}.review-option small{font-size:10px;color:#64748b}.review-option.correct-option{background:#e2f7ec;border-color:#83cfa7}.review-option.student-choice:not(.correct-option){background:#fff0f0;border-color:#efb1ba}.review-explanation{padding:13px;margin-top:14px;background:#f0f4f9;border-radius:8px;font-size:13px}.review-explanation p{margin:5px 0;line-height:1.7}
+.party-burst,.party-burst:popover-open{position:fixed;inset:0;margin:0;border:0;padding:0;width:100vw;height:100vh;height:100dvh;max-width:none;max-height:none;background:transparent;pointer-events:none;z-index:10000;overflow:hidden;box-shadow:none}
+.party-burst::backdrop{background:transparent;pointer-events:none}
+.party-burst[hidden]{display:none!important}
+@media(max-width:760px){.result-policy-row{flex-wrap:wrap}.policy-description{min-width:190px}.result-policy-toggle{width:100%}.result-policy-body{padding:20px}.answer-review{padding:18px}.review-outcome{display:none}.review-option{flex-wrap:wrap}.review-option small{flex-basis:100%;padding-left:20px}}
+@media(prefers-reduced-motion:reduce){.banner-book,.banner-circle:before,.banner-float,.welcome-banner .spark,.award-ring,.award-ring:after,.award-ring>svg{animation:none!important}.policy-switch i{transition:none}.party-burst{display:none!important}}

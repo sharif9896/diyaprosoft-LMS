@@ -1,0 +1,318 @@
+// Optional browser smoke test. Uses a disposable MongoDB database and an installed Chromium browser.
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {spawn} from 'node:child_process';
+import {randomBytes} from 'node:crypto';
+import {once} from 'node:events';
+import {createServer} from 'node:http';
+import assert from 'node:assert/strict';
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+import {MongoMemoryServer} from 'mongodb-memory-server';
+import {connectDatabase,User,Course,Exam,Question,Attempt} from '../server/src/models.js';
+import {createApp} from '../server/src/app.js';
+import {seedDatabase} from '../server/src/seed.js';
+import {greetingMessages} from '../client/src/greeting-messages.js';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const studentOnly=process.argv.includes('--student-only');
+const appearanceOnly=process.argv.includes('--appearance-only');
+const enhancementsOnly=process.argv.includes('--enhancements-only');
+const greetingsOnly=process.argv.includes('--greetings-only');
+const signinOnly=process.argv.includes('--signin-only');
+const output=path.join(root,'.cache','ui');fs.mkdirSync(output,{recursive:true});
+const candidates=[process.env.BROWSER_BINARY,'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe','C:/Program Files/Google/Chrome/Application/chrome.exe'].filter(Boolean);
+const browserBinary=candidates.find(p=>fs.existsSync(p));
+if(!browserBinary)throw new Error('Set BROWSER_BINARY to an installed Chrome/Edge/Chromium executable.');
+const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+let mongo,server,browser,socket,command;const checks=[];
+let holdApi=false;const heldApi=[];
+function releaseApi(fail=false){holdApi=false;for(const {res,run} of heldApi.splice(0)){if(res.destroyed||res.writableEnded)continue;if(fail){res.writeHead(503,{'Content-Type':'application/json'});res.end(JSON.stringify({message:'Temporary test connection failure.'}));}else run();}}
+try{
+  mongo=await MongoMemoryServer.create({instance:{launchTimeout:120000}});await connectDatabase(mongo.getUri());
+  const password=randomBytes(18).toString('base64url');
+  if(studentOnly||appearanceOnly||enhancementsOnly||greetingsOnly||signinOnly){
+    const course=await Course.create({code:'UI101',title:'Browser Test Course'});
+    await User.create({name:'Jordan Taylor',email:'ui-student@example.com',studentId:'UI-STUDENT',role:'student',dateOfBirth:'2005-01-15',courses:[course._id]});
+    const exams=await Exam.insertMany(Array.from({length:5},(_,i)=>({code:`UI-EXAM-${i+1}`,title:`Browser Examination ${i+1}`,course:course._id,durationMinutes:30,questionCount:5,marksPerQuestion:2,passPercentage:60,maxAttempts:3,status:'published'})));
+    await Question.insertMany(exams.flatMap(exam=>Array.from({length:5},(_,i)=>({code:`Q${i+1}`,exam:exam._id,course:course._id,text:`Browser test question ${i+1}`,options:{A:'Correct option',B:'Second option',C:'Third option',D:'Fourth option'},correctAnswer:'A'}))));
+    if(appearanceOnly||enhancementsOnly||greetingsOnly||signinOnly)await User.create({name:'Browser Admin',email:'ui-admin@example.com',role:'admin',password:await bcrypt.hash(password,4)});
+    if(signinOnly)await User.create({name:'Existing Student',email:'existing-ui@example.com',studentId:'EXISTING-01'});
+  }else{
+    await seedDatabase({adminEmail:'ui-admin@example.com',adminPassword:password,studentEmail:'ui-student@example.com',studentDateOfBirth:'2005-01-15'});
+  }
+  const cfg={secret:randomBytes(48).toString('hex'),production:false,origins:[]};
+  const app=createApp(cfg);server=createServer((req,res)=>{if(holdApi&&req.url.startsWith('/api/'))heldApi.push({req,res,run:()=>app(req,res)});else app(req,res);}).listen(0,'127.0.0.1');await once(server,'listening');const base=`http://127.0.0.1:${server.address().port}`;cfg.origins.push(base);
+  const profile=fs.mkdtempSync(path.join(output,'browser-'));
+  browser=spawn(browserBinary,['--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check','--remote-debugging-port=0',`--user-data-dir=${profile}`,'about:blank'],{stdio:'ignore',windowsHide:true});
+  let debugPort;for(let i=0;i<240;i++){try{debugPort=Number(fs.readFileSync(path.join(profile,'DevToolsActivePort'),'utf8').split('\n')[0]);if(debugPort)break;}catch{}await delay(250);}
+  assert.ok(debugPort,'Browser did not start a DevTools endpoint.');
+  const target=await (await fetch(`http://127.0.0.1:${debugPort}/json/new?${base}`,{method:'PUT'})).json();socket=new WebSocket(target.webSocketDebuggerUrl);await once(socket,'open');
+  let id=0;const pending=new Map();
+  socket.addEventListener('message',e=>{const data=JSON.parse(String(e.data));if(!data.id)return;const handler=pending.get(data.id);if(!handler)return;pending.delete(data.id);clearTimeout(handler.timer);data.error?handler.reject(new Error(data.error.message)):handler.resolve(data.result);});
+  socket.addEventListener('close',()=>{for(const p of pending.values()){clearTimeout(p.timer);p.reject(new Error('Browser disconnected.'));}pending.clear();});
+  command=(method,params={})=>new Promise((resolve,reject)=>{const requestId=++id;const timer=setTimeout(()=>{pending.delete(requestId);reject(new Error(`CDP command timed out: ${method}`));},15000);pending.set(requestId,{resolve,reject,timer});socket.send(JSON.stringify({id:requestId,method,params}));});
+  const evaluate=async(expression)=>{const r=await command('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(r.exceptionDetails)throw new Error(r.exceptionDetails.text+': '+r.exceptionDetails.exception?.description);return r.result.value;};
+  const wait=async(expression,timeout=180000)=>{const end=Date.now()+timeout;while(Date.now()<end){if(await evaluate('Boolean('+expression+')'))return;await delay(200);}throw new Error(`UI condition timed out: ${expression}\n${await evaluate('document.body.innerText.slice(0,1200)')}`);};
+  const click=async(text,scope='document')=>{await wait('(()=>{const root='+scope+';return !!root&&Array.from(root.querySelectorAll("button")).some(b=>b.textContent.trim()==='+JSON.stringify(text)+'&&!b.disabled);})()');await evaluate(`Array.from(${scope}.querySelectorAll('button')).find(b=>b.textContent.trim()===${JSON.stringify(text)})?.click()`);await delay(100);};
+  const input=async(selector,value)=>{await evaluate(`(()=>{const el=document.querySelector(${JSON.stringify(selector)});if(!el)throw new Error('Missing input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,${JSON.stringify(value)});el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));})()`);await delay(100);};
+  const signInAs=async(email)=>{
+    await wait("document.querySelector('.signin-modes')");
+    if(email==='ui-admin@example.com'){await click('Administrator',"document.querySelector('.signin-modes')");await input('input[name=email]',email);await input('input[name=password]',password);}
+    else {await click('Student',"document.querySelector('.signin-modes')");await input('input[name=registerNumber]',studentOnly||appearanceOnly||enhancementsOnly||greetingsOnly||signinOnly?'UI-STUDENT':'STU-001');await input('input[name=dateOfBirth]','2005-01-15');}
+    await evaluate("document.querySelector('.login-form form').requestSubmit()");
+  };
+  const navigate=async(href)=>{await evaluate(`document.querySelector('a[href="${href}"]').click()`);};
+  const shot=async(name)=>{const r=await command('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});fs.writeFileSync(path.join(output,name+'.png'),Buffer.from(r.data,'base64'));};
+  const expectBackground=async(selector,color)=>{await wait(`getComputedStyle(document.querySelector(${JSON.stringify(selector)})).backgroundColor===${JSON.stringify(color)}`,5000);};
+  const feedbackDialog="document.querySelector('dialog.feedback-dialog[open]')";
+  const closeFeedback=async(label='Continue managing')=>{await click(label,feedbackDialog);await wait("!document.querySelector('dialog.feedback-dialog[open]')");};
+  const uploadCsv=async(contents)=>{await evaluate(`(()=>{const transfer=new DataTransfer();transfer.items.add(new File([${JSON.stringify(contents)}],'ui-import.csv',{type:'text/csv'}));const input=document.querySelector('dialog[open] input[type=file]');input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);};
+  const visibleButton=async(selector)=>{
+    if(selector==='.topbar-logout'&&!await evaluate("document.querySelector('.account-menu-trigger')?.getAttribute('aria-expanded')==='true'")){await evaluate("document.querySelector('.account-menu-trigger')?.click()");await wait("document.querySelector('.account-dropdown')");}
+    await wait(`document.querySelector(${JSON.stringify(selector)})&&!document.querySelector(${JSON.stringify(selector)}).disabled`);
+    const point=await evaluate(`(()=>{const button=document.querySelector(${JSON.stringify(selector)}),r=button.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;return {x,y,visible:r.width>0&&r.height>0&&r.top>=0&&r.bottom<=innerHeight&&r.left>=0&&r.right<=innerWidth&&button.contains(document.elementFromPoint(x,y))};})()`);
+    assert.equal(point.visible,true,`Button must be visible and reachable: ${selector}`);
+    return point;
+  };
+  const clickVisible=async(selector)=>{const {x,y}=await visibleButton(selector);await command('Input.dispatchMouseEvent',{type:'mousePressed',x,y,button:'left',clickCount:1});await command('Input.dispatchMouseEvent',{type:'mouseReleased',x,y,button:'left',clickCount:1});};
+  const verifySignedOut=async(role)=>{
+    await wait("location.pathname==='/login'&&document.querySelector('.signin-modes')");
+    assert.equal(await evaluate("fetch('/api/auth/me').then(r=>r.status)"),401);
+    assert.equal(await evaluate("sessionStorage.getItem('lms-timezone')"),null);
+    await command('Page.navigate',{url:base+`/${role}/settings`});await delay(300);
+    await wait("location.pathname==='/login'&&document.querySelector('.signin-modes')");
+    assert.equal(await evaluate("document.querySelector('.app-layout')===null"),true);
+  };
+  await command('Page.enable');await command('Emulation.setDeviceMetricsOverride',{width:1440,height:1080,deviceScaleFactor:1,mobile:false});
+  if(signinOnly){
+    const pass=message=>{checks.push(message);console.log('PASS:',message);};
+    const fillField=async(label,value)=>{await evaluate(`(()=>{const label=Array.from(document.querySelectorAll('dialog[open] label')).find(l=>l.firstChild?.textContent.trim()===${JSON.stringify(label)});const input=label?.querySelector('input');if(!input)throw Error('Missing field '+${JSON.stringify(label)});Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));})()`);await delay(70);};
+    await wait("document.querySelector('input[name=registerNumber]')");
+    assert.equal(await evaluate("document.querySelector('input[name=dateOfBirth]').type"),'date');
+    assert.equal(await evaluate("document.querySelector('input[type=email],input[type=password]')===null"),true);
+    await shot('signin-student-register-dob');pass('Student sign-in defaults to register number and a date picker');
+    await input('input[name=registerNumber]','UI-STUDENT');await input('input[name=dateOfBirth]','2005-01-16');await evaluate("document.querySelector('form').requestSubmit()");
+    await wait("document.querySelector('.notice')?.textContent.includes('Register number or date of birth is incorrect')");
+    assert.equal(await evaluate("location.pathname==='/login'"),true);pass('Incorrect DOB shows a readable error without signing in');
+    await signInAs('ui-admin@example.com');await wait("document.querySelector('.dashboard-greeting')");
+    assert.equal(await evaluate("document.querySelector('h1').textContent.includes('Welcome back')"),true);pass('Administrator email/password sign-in still works');
+    await navigate('/admin/students');await wait("document.querySelector('.birth-date-missing')");
+    await click('Add student');await wait("document.querySelector('dialog[open] input[type=date]')");
+    assert.equal(await evaluate("document.querySelector('dialog input[type=password]')===null"),true);
+    await fillField('Full name','Manual Student');await fillField('Register number','000123');await fillField('Email address','manual-ui@example.com');await fillField('Date of birth','2004-02-29');
+    await shot('signin-admin-student-dob');await click('Create student',"document.querySelector('dialog[open]')");await wait("document.querySelector('.feedback-dialog h2')?.textContent==='Student created!'");await closeFeedback();
+    await wait("document.querySelector('tbody')?.textContent.includes('000123')");pass('Student management flags missing DOBs and creates a student with register number/DOB and no password');
+    await click('Import');await wait("document.querySelector('dialog input[type=file]')");await uploadCsv('studentId,name,email,dateOfBirth,courseCodes\n000777,Imported Student,imported-ui@example.com,2005-03-08,UI101\n');
+    await click('Import students',"document.querySelector('dialog[open]')");await wait("document.querySelector('.feedback-dialog h2')?.textContent==='Import complete!'");await closeFeedback('View import report');await click('Done',"document.querySelector('dialog[open]')");
+    await wait("document.querySelector('tbody')?.textContent.includes('000777')");
+    assert.equal(await evaluate("fetch('/api/admin/students/template?format=csv').then(r=>r.text()).then(s=>s.includes('dateOfBirth')&&!s.includes('password'))"),true);
+    pass('Student CSV import and templates use DOB and preserve leading-zero register numbers');
+    await clickVisible('.topbar-logout');await verifySignedOut('admin');
+    await input('input[name=registerNumber]','000123');await input('input[name=dateOfBirth]','2004-02-29');await evaluate("document.querySelector('form').requestSubmit()");await wait("document.querySelector('h1')?.textContent.includes('Hello, Manual')");
+    assert.equal(await evaluate("fetch('/api/auth/me').then(r=>r.json()).then(r=>'dateOfBirth' in r.user||'password' in r.user)"),false);
+    await navigate('/student/settings');await wait("document.querySelector('.student-signin-details')");
+    assert.equal(await evaluate("document.querySelector('input[type=password]')===null"),true);assert.equal(await evaluate("document.querySelector('.student-signin-details input').value"),'000123');
+    await shot('signin-student-settings');pass('A manually created student signs in with DOB; settings show managed sign-in details and no password form');
+    await clickVisible('.topbar-logout');await verifySignedOut('student');await command('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+    await wait("document.querySelector('input[name=dateOfBirth]')");assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true);await shot('signin-mobile-register-dob');
+    await input('input[name=registerNumber]','000777');await input('input[name=dateOfBirth]','2005-03-08');await evaluate("document.querySelector('form').requestSubmit()");await wait("document.querySelector('h1')?.textContent.includes('Hello, Imported')");
+    assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true);await clickVisible('.topbar-logout');await verifySignedOut('student');pass('Imported students can sign in and log out on a 390px screen');
+  }
+  if(greetingsOnly){
+    const pass=message=>{checks.push(message);console.log('PASS:',message);};
+    const login=async(email)=>{await wait("document.querySelector('.signin-modes')");await signInAs(email);await wait("document.querySelector('.dashboard-greeting')");};
+    const key=async(key,code=key,windowsVirtualKeyCode)=>{await command('Input.dispatchKeyEvent',{type:'keyDown',key,code,windowsVirtualKeyCode});await command('Input.dispatchKeyEvent',{type:'keyUp',key,code,windowsVirtualKeyCode});};
+    await command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
+    await login('ui-admin@example.com');
+    assert.equal(await evaluate("document.querySelector('.topbar-logout')===null"),true);
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.greeting-wave')).color"),'rgb(18, 56, 107)');
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.greeting-wave')).animationName"),'greeting-wave');
+    const hand=await evaluate("getComputedStyle(document.querySelector('.greeting-wave')).transform");await delay(250);
+    assert.notEqual(await evaluate("getComputedStyle(document.querySelector('.greeting-wave')).transform"),hand);
+    await shot('greeting-admin-dashboard');pass('Admin dashboard has a continuously waving dark navy hand and no standalone header logout');
+    await wait("document.querySelector('.motivation-text')?.textContent.length>0");
+    await clickVisible('.motivation-pause');const frozen=await evaluate("document.querySelector('.motivation-text').textContent");await delay(300);
+    assert.equal(await evaluate("document.querySelector('.motivation-text').textContent"),frozen);
+    await clickVisible('.motivation-pause');
+    const seen=[];const deadline=Date.now()+65000;
+    while(Date.now()<deadline&&seen.length<5){const value=await evaluate("document.querySelector('.motivation-text').textContent");if(greetingMessages.includes(value)&&!seen.includes(value)){seen.push(value);console.log('Typed message:',value);}await delay(70);}
+    assert.deepEqual(seen,greetingMessages);assert.equal(seen[4],'Developed By - SHARIF RAYAN');
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.typing-cursor')).animationName"),'typing-caret');
+    await shot('greeting-developer-credit');pass('All five messages type in order with an animated cursor; pause/resume preserves the current text');
+    await clickVisible('.account-menu-trigger');await wait("document.querySelector('.account-dropdown')");
+    assert.equal(await evaluate("document.activeElement?.getAttribute('href')"),'/admin/profile');
+    await key('ArrowDown','ArrowDown',40);assert.equal(await evaluate("document.activeElement?.classList.contains('topbar-logout')"),true);
+    await key('Home','Home',36);assert.equal(await evaluate("document.activeElement?.getAttribute('href')"),'/admin/profile');
+    await key('End','End',35);assert.equal(await evaluate("document.activeElement?.classList.contains('topbar-logout')"),true);
+    await key('Escape','Escape',27);await wait("!document.querySelector('.account-dropdown')");
+    assert.equal(await evaluate("document.activeElement?.classList.contains('account-menu-trigger')"),true);
+    await key('ArrowUp','ArrowUp',38);await wait("document.activeElement?.classList.contains('topbar-logout')");await key('Escape','Escape',27);
+    await clickVisible('.account-menu-trigger');await command('Input.dispatchMouseEvent',{type:'mousePressed',x:310,y:145,button:'left',clickCount:1});await command('Input.dispatchMouseEvent',{type:'mouseReleased',x:310,y:145,button:'left',clickCount:1});await wait("!document.querySelector('.account-dropdown')");
+    pass('Account menu supports arrow keys, Home/End, Escape with focus return, and outside-click dismissal');
+    await clickVisible('.account-menu-trigger');await delay(250);assert.equal(await evaluate("getComputedStyle(document.querySelector('.account-dropdown')).opacity"),'1');await shot('greeting-admin-account-menu');await clickVisible('.account-dropdown a');
+    await wait("location.pathname==='/admin/profile'&&document.querySelector('h1')?.textContent==='My profile'");assert.equal(await evaluate("document.querySelector('.account-dropdown')===null"),true);
+    await navigate('/admin');await wait("document.querySelector('.dashboard-greeting')");
+    pass('Admin account menu opens My profile and closes on navigation');
+    await evaluate("(()=>{window.menuFetch=window.fetch;window.fetch=(...args)=>String(args[0]).endsWith('/auth/logout')?Promise.reject(new Error('Menu logout test failure.')):window.menuFetch(...args)})()");
+    await clickVisible('.topbar-logout');await wait("document.querySelector('.toast.error')?.textContent.includes('Menu logout test failure.')");assert.equal(await evaluate("fetch('/api/auth/me').then(r=>r.status)"),200);
+    await evaluate('window.fetch=window.menuFetch;delete window.menuFetch');await clickVisible('.topbar-logout');await verifySignedOut('admin');
+    pass('Admin dropdown logout retries after a connection error, clears the session and protects routes');
+    await command('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+    await login('ui-student@example.com');
+    assert.match(await evaluate("document.querySelector('.dashboard-greeting').textContent"),/Hello, Jordan/);
+    await clickVisible('.account-menu-trigger');const box=await evaluate("(()=>{const r=document.querySelector('.account-dropdown').getBoundingClientRect();return {left:r.left,right:r.right,bottom:r.bottom}})()");
+    assert.ok(box.left>=0&&box.right<=390&&box.bottom<=844);assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true);
+    await delay(250);assert.equal(await evaluate("getComputedStyle(document.querySelector('.account-dropdown')).opacity"),'1');await shot('greeting-student-mobile-menu');await clickVisible('.account-dropdown a');await wait("location.pathname==='/student/profile'&&document.querySelector('h1')?.textContent==='My profile'");
+    await evaluate("document.querySelector('.brand-link').click()");await wait("document.querySelector('.dashboard-greeting')");
+    pass('Student dropdown fits a 390px screen and navigates to the student profile');
+    await command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+    await wait("document.querySelector('.motivation-line.is-reduced')");assert.equal(await evaluate("getComputedStyle(document.querySelector('.greeting-wave')).animationName"),'none');
+    assert.equal(await evaluate("document.querySelector('.typing-cursor,.motivation-pause')===null"),true);
+    assert.equal(await evaluate("document.querySelector('.motivation-text').textContent"),greetingMessages[0]);assert.equal(await evaluate("document.querySelector('.motivation-credit').textContent"),greetingMessages[4]);
+    await shot('greeting-mobile-reduced-motion');pass('Reduced motion shows static motivation and developer credit without waving, typing or cursor blinking');
+    await clickVisible('.topbar-logout');await verifySignedOut('student');pass('Student dropdown logout clears the session and protects routes on mobile');
+  }
+  if(enhancementsOnly){
+    const pass=message=>{checks.push(message);console.log('PASS:',message);};
+    const login=async(email)=>{await wait("document.querySelector('.signin-modes')");await signInAs(email);await wait("document.querySelector('.app-layout')&&!document.querySelector('.loading')");};
+    await login('ui-admin@example.com');
+    await wait("document.querySelector('.banner-book')");
+    assert.equal(await evaluate("getComputedStyle(document.documentElement).getPropertyValue('--primary').trim()"),'#12386b');
+    assert.match(await evaluate("getComputedStyle(document.documentElement).scrollbarColor"),/rgb\(24, 58, 103\)/);
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.banner-book')).animationIterationCount"),'infinite');
+    const before=await evaluate("getComputedStyle(document.querySelector('.banner-book')).transform");await delay(350);
+    assert.notEqual(await evaluate("getComputedStyle(document.querySelector('.banner-book')).transform"),before);
+    await shot('navy-admin-dashboard');pass('Dark navy theme, scrollbar and continuously animated admin book');
+    await navigate('/admin/settings');await wait("document.querySelector('.result-policy-toggle')");
+    assert.equal(await evaluate("document.querySelector('.result-policy-toggle').getAttribute('aria-pressed')"),'true');
+    await click('Turn off visibility');await wait("document.querySelector('.result-policy-toggle')?.getAttribute('aria-pressed')==='false'&&!document.querySelector('.result-policy-toggle').disabled");
+    assert.equal(await evaluate("fetch('/api/admin/settings').then(r=>r.json()).then(s=>s.studentResultsVisible)"),false);
+    await shot('navy-admin-hidden-setting');pass('Admin Settings button persists the global visibility setting');
+    await clickVisible('.topbar-logout');await verifySignedOut('admin');
+    await login('ui-student@example.com');await wait("document.querySelector('.award-ring')");
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.award-ring')).animationIterationCount"),'infinite');
+    assert.equal(await evaluate("document.querySelector('.stat-card:last-child>strong')?.textContent"),'Hidden');
+    await shot('navy-student-dashboard');pass('Continuously animated student medal and withheld dashboard scores');
+    await navigate('/student/exams');await wait("document.querySelectorAll('.exam-card').length===5");
+    await click('Start examination');await wait("document.querySelector('.instructions-dialog[open]')");
+    assert.equal(await evaluate("document.querySelector('.instructions-dialog .modal-footer .primary').disabled"),true);
+    assert.equal(await Attempt.countDocuments(),0);
+    await shot('navy-exam-instructions');await click('Not yet');assert.equal(await Attempt.countDocuments(),0);
+    await click('Start examination');await wait("document.querySelector('.instructions-ack input')");await evaluate("document.querySelector('.instructions-ack input').click()");await click('Start examination',"document.querySelector('.instructions-dialog')");
+    await wait("document.querySelector('input[type=radio]')&&!document.querySelector('input[type=radio]').disabled");
+    assert.equal(await Attempt.countDocuments(),1);pass('Start opens instructions; acknowledgment is required before creating the timed attempt');
+    await evaluate("document.querySelector('input[type=radio]').click()");
+    await click('Submit examination');await wait("document.querySelector('dialog[open] .submit-summary')");await click('Submit examination',"document.querySelector('dialog[open]')");
+    await wait("document.querySelector('.feedback-dialog[open] h2')?.textContent==='Exam submitted!'");
+    await wait("document.querySelector('.party-burst')?.matches(':popover-open')");
+    assert.equal(await evaluate("document.querySelector('.party-burst')?.matches(':popover-open')"),true);
+    assert.equal(await evaluate("document.querySelectorAll('.feedback-stats>div').length"),0);
+    await delay(350);await shot('navy-submission-party-burst');await clickVisible('.feedback-continue');
+    await wait("document.querySelector('.submission-receipt')&&!document.querySelector('.feedback-dialog')");
+    assert.equal(await evaluate("document.querySelector('.result-big,.answer-review')===null"),true);
+    assert.equal(await evaluate("document.querySelector('.party-burst')===null"),true);
+    await shot('navy-hidden-submission');pass('Successful submission launches a nonblocking party burst and shows a receipt without grades');
+    const attemptPath=await evaluate('location.pathname');
+    await navigate('/student/results');await wait("document.querySelector('tbody tr')");
+    assert.equal(await evaluate("document.querySelector('table').innerText.includes('SCORE')"),false);
+    assert.equal(await evaluate("document.body.innerText.includes('Passed examinations')"),false);
+    await evaluate("document.querySelector('tbody .icon-btn').click()");await wait("document.querySelector('dialog .submission-receipt')");
+    assert.equal(await evaluate("document.querySelector('dialog .result-big,dialog .answer-review')===null"),true);await click('Keep learning');
+    await shot('navy-hidden-history');pass('Hidden results history and submission detail never display scores or answer reviews');
+    await clickVisible('.topbar-logout');await verifySignedOut('student');await login('ui-admin@example.com');
+    await navigate('/admin/results');await wait("document.querySelector('tbody tr')");
+    assert.equal(await evaluate("document.querySelector('table').innerText.includes('20%')"),true);
+    await navigate('/admin/settings');await wait("document.querySelector('.result-policy-toggle')?.getAttribute('aria-pressed')==='false'");await click('Turn on visibility');await wait("document.querySelector('.result-policy-toggle')?.getAttribute('aria-pressed')==='true'&&!document.querySelector('.result-policy-toggle').disabled");
+    await clickVisible('.topbar-logout');await verifySignedOut('admin');await login('ui-student@example.com');
+    await command('Page.navigate',{url:base+attemptPath});await wait("document.querySelector('.result-big')&&document.querySelectorAll('.review-question').length===5");
+    await evaluate("document.querySelector('.review-question summary').click()");await shot('navy-released-answer-review');
+    assert.equal(await evaluate("document.querySelectorAll('.review-option.correct-option').length"),5);
+    pass('Releasing past attempts restores student scores and correct-answer reviews; admin reports stay available');
+    await command('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await delay(200);
+    assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true);await shot('navy-mobile-review');
+    await command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+    await navigate('/student');await wait("document.querySelector('.award-ring')");assert.equal(await evaluate("getComputedStyle(document.querySelector('.award-ring')).animationName"),'none');
+    await navigate('/student/exams');await wait("document.querySelectorAll('.exam-card').length===5");await click('Start examination');await wait("document.querySelector('.instructions-ack input')");await evaluate("document.querySelector('.instructions-ack input').click()");await click('Start examination',"document.querySelector('.instructions-dialog')");
+    await wait("document.querySelector('input[type=radio]')&&!document.querySelector('input[type=radio]').disabled");await click('Submit examination');await wait("document.querySelector('dialog .submit-summary')");await click('Submit examination',"document.querySelector('dialog[open]')");await wait("document.querySelector('.feedback-dialog[open]')");
+    assert.equal(await evaluate("document.querySelector('.party-burst')?.matches(':popover-open')"),false);
+    assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true);await shot('navy-mobile-submission');await closeFeedback('View my result');
+    pass('390px layouts fit the screen and reduced-motion preference disables decorative animation and confetti');
+  }
+  if(appearanceOnly){
+    const recordCheck=message=>{checks.push(message);console.log('PASS:',message);};
+    const waitHeld=async(predicate)=>{const end=Date.now()+10000;while(Date.now()<end){if(predicate(heldApi))return;await delay(50);}throw new Error('The expected test request was not paused.');};
+    const expectReady=async()=>wait("!document.querySelector('.loading')&&!document.querySelector('.network-activity')");
+    const reloadRoute=async(route,title,screenshot,heading='h1')=>{
+      holdApi=true;await command('Page.navigate',{url:base+route});
+      await wait("document.querySelector('.loading .brand-loader-image')?.naturalWidth>0");
+      assert.equal(await evaluate("getComputedStyle(document.querySelector('.loading .brand-loader-image')).animationName"),'emblem-scale');
+      if(screenshot)await shot(screenshot);
+      releaseApi();await wait(`document.querySelector(${JSON.stringify(heading)})?.textContent.includes(${JSON.stringify(title)})`);await expectReady();
+      assert.equal(await evaluate("getComputedStyle(document.documentElement).getPropertyValue('--primary').trim()"),'#12386b');
+      assert.equal(await evaluate('getComputedStyle(document.body).backgroundColor'),'rgb(248, 250, 252)');
+      if(route.endsWith('/profile'))assert.equal(await evaluate("getComputedStyle(document.querySelector('.profile-note')).color"),'rgb(100, 116, 139)');
+      if(route==='/student')assert.equal(await evaluate("getComputedStyle(document.querySelector('.award-ring')).backgroundColor"),'rgba(219, 234, 254, 0.4)');
+    };
+    const loginAs=async(email)=>{await wait("document.querySelector('.signin-modes')");await signInAs(email);await wait("document.querySelector('.app-layout')");await expectReady();};
+    await command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
+    const html=await(await fetch(base)).text();assert.ok(html.includes('startup-loading')&&html.includes('/vmes-emblem.png')&&html.includes('/loading.css'));
+    holdApi=true;await command('Page.navigate',{url:base+'/login'});await wait("document.querySelector('.loading .brand-loader-image')?.naturalWidth>0");await shot('startup-emblem-loader');
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.brand-loader-image')).animationName"),'emblem-scale');
+    await command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});assert.equal(await evaluate("getComputedStyle(document.querySelector('.brand-loader-image')).animationName"),'none');await command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
+    releaseApi();await wait("document.querySelector('.signin-modes')");await shot('blue-login');recordCheck('Startup emblem, scaling animation, and reduced-motion preference');
+    await loginAs('ui-admin@example.com');
+    for(const [route,title] of [['/admin','Welcome back'],['/admin/students','Students'],['/admin/courses','Courses'],['/admin/exams','Examinations'],['/admin/questions','Question bank'],['/admin/results','Results & reports'],['/admin/profile','My profile'],['/admin/settings','Settings']])await reloadRoute(route,title);
+    await shot('blue-admin-settings');recordCheck('Logo loading and blue/white/gray theme on all eight admin pages');
+    await navigate('/admin');await wait("document.querySelector('h1')?.textContent.includes('Welcome back')");await expectReady();await shot('blue-admin-dashboard');
+    holdApi=true;await navigate('/admin/students');await wait("document.querySelector('.page-content .loading .brand-loader-image')?.naturalWidth>0");await shot('admin-data-emblem-loader');await navigate('/admin/courses');await wait("document.querySelector('h1')?.textContent==='Courses'");await waitHeld(items=>items.length>=2);releaseApi();await expectReady();await wait("document.querySelector('tbody')?.textContent.includes('UI101')");
+    holdApi=true;await click('Add course');await wait("document.querySelector('dialog[open] .network-activity--dialog .brand-loader-image')?.naturalWidth>0");await waitHeld(items=>items.length>=3);await shot('admin-form-emblem-loader');await clickVisible('dialog[open] button[aria-label="Close dialog"]');await wait("document.querySelector('.network-activity:not(.network-activity--dialog)')");releaseApi();await expectReady();assert.equal(await evaluate('document.body.style.overflow'),'');recordCheck('Concurrent data loads and cancellable admin dialog loading indicators');
+    await clickVisible('.topbar-logout');await wait("document.querySelector('.signin-modes')");await loginAs('ui-student@example.com');
+    for(const [route,title] of [['/student','Hello, Jordan'],['/student/courses','My courses'],['/student/exams','My examinations'],['/student/results','My results'],['/student/profile','My profile'],['/student/settings','Settings']])await reloadRoute(route,title);
+    await shot('blue-student-settings');recordCheck('Logo loading and blue/white/gray theme on all six student pages');
+    holdApi=true;await navigate('/student/courses');await wait("document.querySelector('.loading .brand-loader-image')?.naturalWidth>0");releaseApi(true);await wait("document.querySelector('.error-state')");await expectReady();await navigate('/student/exams');await wait("document.querySelectorAll('.exam-card').length===5");await expectReady();recordCheck('Loading clears after a failed request and recovers on the next page');
+    await click('Start examination');await wait("document.querySelector('dialog[open]')");await evaluate("document.querySelector('.instructions-ack input').click()");await click('Start examination',"document.querySelector('dialog[open]')");await wait("document.querySelector('input[type=radio]')&&!document.querySelector('input[type=radio]').disabled");await wait("document.querySelector('.save-indicator')?.textContent.includes('All answers saved')");
+    holdApi=true;await evaluate("document.querySelector('input[type=radio]').click()");await waitHeld(items=>items.some(({req})=>req.url.endsWith('/answers')));assert.equal(await evaluate("document.querySelector('.network-activity')===null"),true);const timer=await evaluate("document.querySelector('.timer strong').textContent");await delay(1200);assert.notEqual(await evaluate("document.querySelector('.timer strong').textContent"),timer);releaseApi();await wait("document.querySelector('.save-indicator')?.textContent.includes('All answers saved')");
+    await expectBackground('.question-grid button','rgb(226, 247, 236)');await click('Mark for review');await expectBackground('.question-grid button','rgb(255, 244, 201)');await expectBackground('.question-grid button:nth-child(2)','rgb(255, 240, 240)');await evaluate("document.querySelectorAll('.question-grid button')[1].click()");await wait("document.querySelector('.question-grid button:nth-child(2).current')");await evaluate("document.querySelector('input[type=radio]').click()");await expectBackground('.question-grid button:nth-child(2)','rgb(226, 247, 236)');await wait("document.querySelector('.save-indicator')?.textContent.includes('All answers saved')");await shot('blue-exam-status-colors');recordCheck('Quiet background saving, running exam timer, and semantic status colors');
+    holdApi=true;await click('Submit examination');await wait("document.querySelector('dialog[open]')");await click('Submit examination',"document.querySelector('dialog[open]')");await waitHeld(items=>items.some(({req})=>req.url.endsWith('/submit')));await wait("document.querySelector('dialog[open] .network-activity--dialog .brand-loader-image')?.naturalWidth>0");await shot('student-submit-emblem-loader');releaseApi();await wait("document.querySelector('.feedback-dialog[open] h2')?.textContent==='Exam submitted!'");assert.equal(await evaluate("getComputedStyle(document.querySelector('.feedback-symbol')).backgroundColor"),'rgb(18, 56, 107)');await command('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await delay(300);await shot('blue-mobile-submission');assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true);await closeFeedback('View my result');recordCheck('Submission loading emblem and blue animated success popup on mobile');
+  }
+  if(!appearanceOnly&&!enhancementsOnly&&!greetingsOnly&&!signinOnly){
+  if(!studentOnly){
+  await wait("document.querySelector('.signin-modes')");await signInAs('ui-admin@example.com');
+  await wait("document.querySelector('h1')?.textContent.includes('Welcome back')");await wait("document.querySelectorAll('.stat-card').length===4");await shot('admin-overview');checks.push('Admin sign-in and dashboard');console.log('PASS:',checks.at(-1));
+  await navigate('/admin/students');await wait("document.querySelector('h1')?.textContent==='Students'");await wait("document.querySelectorAll('tbody tr').length>0");await click('Add student');await wait("document.querySelector('dialog[open]')");assert.equal(await evaluate("document.querySelector('dialog').textContent.includes('Enrolled courses')"),true);await evaluate("document.querySelector('button[aria-label=\"Close dialog\"]').click()");
+  await click('Import');await wait("document.querySelector('dialog')?.textContent.includes('CSV template')");await evaluate("document.querySelector('button[aria-label=\"Close dialog\"]').click()");checks.push('Student management editor and import dialog');console.log('PASS:',checks.at(-1));
+  await navigate('/admin/courses');await wait("document.querySelector('h1')?.textContent==='Courses'");await click('Add course');await wait("document.querySelector('dialog[open] .form-grid')");await input('dialog[open] .form-grid label:nth-child(1) input','UI900');await input('dialog[open] .form-grid label:nth-child(2) input','Animated Feedback Course');await click('Create course',"document.querySelector('dialog[open]')");
+  await wait("document.querySelector('.feedback-dialog[open] h2')?.textContent==='Course created!'");await delay(600);await shot('admin-save-popup');await closeFeedback();await wait("document.querySelector('tbody')?.textContent.includes('UI900')");
+  await click('Add course');await input('dialog[open] .form-grid label:nth-child(1) input','UI900');await input('dialog[open] .form-grid label:nth-child(2) input','Duplicate Course');await click('Create course',"document.querySelector('dialog[open]')");await wait("document.querySelector('dialog[open] .notice.error')");assert.equal(await evaluate("document.querySelector('.feedback-dialog[open]')===null"),true);await evaluate("document.querySelector('dialog[open] button[aria-label=\"Close dialog\"]').click()");
+  await evaluate("document.querySelector('button[aria-label=\"Edit Animated Feedback Course\"]').click()");await wait("document.querySelector('dialog[open] .form-grid')");await input('dialog[open] .form-grid label:nth-child(2) input','Updated Feedback Course');await click('Save changes',"document.querySelector('dialog[open]')");await wait("document.querySelector('.feedback-dialog[open] h2')?.textContent==='Course updated!'");await closeFeedback();await wait("document.querySelector('button[aria-label=\"Delete Updated Feedback Course\"]')");
+  await evaluate("document.querySelector('button[aria-label=\"Delete Updated Feedback Course\"]').click()");await click('Delete course',"document.querySelector('dialog[open]')");await wait("document.querySelector('.feedback-dialog[open] h2')?.textContent==='Course deleted'");await closeFeedback();await wait("!document.querySelector('tbody')?.textContent.includes('UI900')");checks.push('Admin create, update, delete feedback and validation failure');console.log('PASS:',checks.at(-1));
+  await click('Import');await wait("document.querySelector('input[type=file]')");await uploadCsv('code,title,status\nUI901,Imported Feedback Course,active\nUI902,,active\n');await click('Import courses',"document.querySelector('dialog[open]')");await wait("document.querySelector('.feedback-warning[open]')");assert.equal(await evaluate("document.querySelectorAll('dialog[open]').length"),2);assert.equal(await evaluate("new Set(Array.from(document.querySelectorAll('dialog[open]')).map(d=>d.getAttribute('aria-labelledby'))).size"),2);
+  await command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});assert.equal(await evaluate("getComputedStyle(document.querySelector('.feedback-dialog')).animationName"),'none');await shot('admin-import-warning');await closeFeedback('View import report');assert.equal(await evaluate("document.body.style.overflow"),'hidden');assert.equal(await evaluate("document.querySelector('dialog[open]').textContent.includes('Row 3')"),true);
+  await click('Import another file',"document.querySelector('dialog[open]')");await uploadCsv('code,title,status\nUI902,Corrected Import Course,active\n');await click('Import courses',"document.querySelector('dialog[open]')");await wait("document.querySelector('.feedback-success[open] h2')?.textContent==='Import complete!'");assert.equal(await evaluate("getComputedStyle(document.querySelector('.feedback-check path')).strokeDashoffset"),'0px');await closeFeedback('View import report');await click('Done',"document.querySelector('dialog[open]')");await wait("!document.querySelector('dialog[open]')");assert.equal(await evaluate('document.body.style.overflow'),'');await command('Emulation.setEmulatedMedia',{features:[]});checks.push('Import warning/success popups, nested dialogs, and reduced motion');console.log('PASS:',checks.at(-1));
+  await evaluate("document.querySelector('.export-menu summary').click();document.querySelector('.export-menu .dropdown button').click()");await wait("document.querySelector('.feedback-dialog[open] h2')?.textContent==='Export ready!'");await closeFeedback();checks.push('Admin export completion popup');console.log('PASS:',checks.at(-1));
+  await navigate('/admin/questions');await wait("document.querySelector('h1')?.textContent==='Question bank'");await wait("document.querySelectorAll('tbody tr').length>0");checks.push('Question bank rendering');console.log('PASS:',checks.at(-1));
+  await command('Emulation.setDeviceMetricsOverride',{width:1366,height:605,deviceScaleFactor:1,mobile:false});await evaluate('window.scrollTo(0,0)');await visibleButton('.topbar-logout');
+  await evaluate("document.querySelector('.sidebar .logout').scrollIntoView({block:'center'})");await visibleButton('.sidebar .logout');await shot('admin-logout-short-window');
+  await evaluate("(()=>{window.logoutTestFetch=window.fetch;window.fetch=(...args)=>String(args[0])==='/api/auth/logout'?Promise.reject(new Error('Logout connection failed.')):window.logoutTestFetch(...args);})()");
+  await clickVisible('.topbar-logout');await wait("document.querySelector('.toast.error')?.textContent.includes('Logout connection failed.')");await visibleButton('.topbar-logout');assert.equal(await evaluate("fetch('/api/auth/me').then(r=>r.status)"),200);
+  await evaluate('window.fetch=window.logoutTestFetch;delete window.logoutTestFetch');checks.push('Logout failure keeps the session and permits retry');console.log('PASS:',checks.at(-1));
+  await clickVisible('.topbar-logout');await verifySignedOut('admin');checks.push('Admin logout in a 605 px window clears the session and protects routes');console.log('PASS:',checks.at(-1));
+  }
+  await command('Emulation.setDeviceMetricsOverride',{width:1440,height:1080,deviceScaleFactor:1,mobile:false});await wait("document.querySelector('.signin-modes')");await signInAs('ui-student@example.com');await wait("document.querySelector('h1')?.textContent.includes('Hello, Jordan')");checks.push('Student sign-in and assigned course dashboard');console.log('PASS:',checks.at(-1));
+  await navigate('/student/exams');await wait("document.querySelectorAll('.exam-card').length===5");await click('Start examination');await wait("document.querySelector('dialog[open]')");await evaluate("document.querySelector('.instructions-ack input').click()");await click('Start examination',"document.querySelector('dialog')");await wait("document.querySelector('.question-panel')");await wait("document.querySelector('input[type=radio]')&&!document.querySelector('input[type=radio]').disabled");
+  await expectBackground('.question-grid button','rgb(255, 240, 240)');await evaluate("document.querySelector('input[type=radio]').click()");await wait("document.querySelector('.question-grid button.answered')");await expectBackground('.question-grid button','rgb(226, 247, 236)');await click('Mark for review');await expectBackground('.question-grid button','rgb(255, 244, 201)');await click('Marked for review');await click('Clear answer');await wait("document.querySelector('.question-grid button.unanswered')");await evaluate("document.querySelector('input[type=radio]').click()");await evaluate("document.querySelectorAll('.question-grid button')[1].click()");await click('Mark for review');await shot('exam-status-colors');assert.equal(await evaluate("document.querySelector('.question-grid button.current').getAttribute('aria-current')"),'step');await evaluate("document.querySelectorAll('.question-grid button')[0].click()");checks.push('Green answered, red unanswered, yellow review and current question');console.log('PASS:',checks.at(-1));
+  await click('Save & leave');await wait("document.querySelector('h1')?.textContent==='My examinations'");await click('Resume examination');await wait("document.querySelector('dialog[open]')");await evaluate("document.querySelector('.instructions-ack input').click()");await click('Resume examination',"document.querySelector('dialog')");await wait("document.querySelector('.question-panel')");await wait("document.querySelector('input[type=radio]:checked')");checks.push('Answer selection, save and leave, resume');console.log('PASS:',checks.at(-1));
+  const count=await evaluate("document.querySelectorAll('.question-grid button').length");for(let i=0;i<count;i++){await evaluate(`document.querySelectorAll('.question-grid button')[${i}].click()`);await delay(100);await wait("document.querySelector('input[type=radio]')&&!document.querySelector('input[type=radio]').disabled");await evaluate("document.querySelector('input[type=radio]').click()");}
+  await evaluate("(()=>{window.submitTestFetch=window.fetch;window.fetch=(...args)=>String(args[0]).endsWith('/submit')?Promise.reject(new Error('Submission connection failed.')):window.submitTestFetch(...args);})()");await click('Submit examination');await wait("document.querySelector('dialog[open]')");await click('Submit examination',"document.querySelector('dialog')");await wait("document.querySelector('.notice')?.textContent.includes('Submission connection failed.')");assert.equal(await evaluate("document.querySelector('.feedback-dialog[open]')===null"),true);await evaluate('window.fetch=window.submitTestFetch;delete window.submitTestFetch');await click('Retry submission');
+  await wait("document.querySelector('.feedback-dialog[open] h2')?.textContent==='Exam submitted!'");await delay(600);assert.equal(await evaluate("document.querySelectorAll('.feedback-stats>div').length"),3);await shot('student-submission-popup');await command('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await delay(300);assert.equal(await evaluate("document.querySelector('.feedback-dialog').getBoundingClientRect().width<=innerWidth"),true);await shot('student-submission-popup-mobile');await closeFeedback('View my result');await command('Emulation.setDeviceMetricsOverride',{width:1440,height:1080,deviceScaleFactor:1,mobile:false});checks.push('Student submission popup after success, retry on failure, and mobile layout');console.log('PASS:',checks.at(-1));
+  await wait("document.querySelector('.submitted-panel')");assert.equal(await evaluate("document.querySelector('.result-big')!==null"),true);await shot('student-result');await command('Page.reload');await delay(300);await wait("document.querySelector('.submitted-panel')");assert.equal(await evaluate("document.querySelector('.feedback-dialog[open]')===null"),true);checks.push('Exam submission and scored result');console.log('PASS:',checks.at(-1));
+  await navigate('/student/exams');await wait("document.querySelectorAll('.exam-card').length===5");await command('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await delay(300);assert.equal(await evaluate('document.documentElement.scrollWidth<=window.innerWidth'),true);await shot('student-mobile');checks.push('390 px mobile viewport without page overflow');console.log('PASS:',checks.at(-1));
+  await evaluate('window.scrollTo(0,0)');await visibleButton('.topbar-logout');await clickVisible('.mobile-menu');await wait("document.querySelector('.sidebar.open')");await delay(300);await evaluate("document.querySelector('.sidebar .logout').scrollIntoView({block:'center'})");await visibleButton('.sidebar .logout');await shot('student-mobile-logout');await clickVisible('.sidebar .logout');await verifySignedOut('student');checks.push('Student mobile sidebar logout clears the session and protects routes');console.log('PASS:',checks.at(-1));
+  await signInAs('ui-student@example.com');await wait("document.querySelector('h1')?.textContent.includes('Hello, Jordan')");await visibleButton('.topbar-logout');assert.equal(await evaluate('document.documentElement.scrollWidth<=window.innerWidth'),true);await shot('student-mobile-header-logout');await clickVisible('.topbar-logout');await verifySignedOut('student');checks.push('Student mobile header logout without opening navigation');console.log('PASS:',checks.at(-1));
+  }
+  console.log(JSON.stringify({status:'passed',checks,screenshots:path.relative(root,output)},null,2));
+}finally{
+  releaseApi();
+  if(command)await command('Browser.close').catch(()=>{});socket?.close();browser?.kill();if(server)await new Promise(resolve=>server.close(resolve));await mongoose.disconnect();if(mongo)await mongo.stop();
+}

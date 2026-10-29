@@ -1,0 +1,2 @@
+studentId,name,email,dateOfBirth,phone,department,status,courseCodes
+STU-101,Sample Student,student101@example.com,2005-01-15,,Computer Science,active,WEB101

@@ -1,0 +1,9 @@
+node_modules/
+client/dist/
+.env
+server/.env
+*.log
+artifacts/
+coverage/
+.cache/
+test-results/

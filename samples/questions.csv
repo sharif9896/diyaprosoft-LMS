@@ -1,0 +1,6 @@
+code,examCode,courseCode,text,optionA,optionB,optionC,optionD,correctAnswer,explanation
+Q001,WEB-TEST-01,WEB101,Which tag creates a hyperlink?,<a>,<p>,<div>,<span>,A,The anchor element creates a hyperlink.
+Q002,WEB-TEST-01,WEB101,What does CSS stand for?,Computer Style Sheets,Cascading Style Sheets,Creative Style System,Color Style Syntax,B,CSS stands for Cascading Style Sheets.
+Q003,WEB-TEST-01,WEB101,Which keyword declares a block-scoped variable?,var,define,let,static,C,The let keyword has block scope.
+Q004,WEB-TEST-01,WEB101,Which HTTP method retrieves a resource?,POST,DELETE,PATCH,GET,D,GET retrieves a resource.
+Q005,WEB-TEST-01,WEB101,Which property controls text size?,font-size,text-style,font-weight,text-size,A,The font-size property controls the size of text.
