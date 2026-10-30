@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://diyaprosoft-lms-4.onrender.com/api/:path*"
+      "destination": "https://diyaprosoft-lms-2.onrender.com/api/:path*"
     },
     { "source": "/(.*)", "destination": "/index.html" }
   ]

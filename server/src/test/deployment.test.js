@@ -7,7 +7,7 @@ import {createApp} from '../app.js';
 const environment={
   JWT_SECRET:'disposable-deployment-test-secret-at-least-32-characters',
   NODE_ENV:'production',RENDER:'true',
-  RENDER_EXTERNAL_URL:'https://diyaprosoft-lms-4.onrender.com',
+  RENDER_EXTERNAL_URL:'https://diyaprosoft-lms-2.onrender.com',
   CLIENT_ORIGIN:'https://diyaprosoft-lms.vercel.app/login,https://diyaprosoft-lms.vercel.app/'
 };
 
@@ -18,7 +18,7 @@ test('Render configuration uses the assigned port, public host, exact origins an
   assert.equal(cfg.serveClient,false);
   assert.equal(cfg.trustProxy,1);
   assert.equal(cfg.cookieSameSite,'lax');
-  assert.deepEqual(cfg.origins,['https://diyaprosoft-lms.vercel.app','https://diyaprosoft-lms-4.onrender.com']);
+  assert.deepEqual(cfg.origins,['https://diyaprosoft-lms.vercel.app','https://diyaprosoft-lms-2.onrender.com']);
   const local=config({JWT_SECRET:environment.JWT_SECRET});
   assert.equal(local.serveClient,true);
   assert.equal(local.trustProxy,0);

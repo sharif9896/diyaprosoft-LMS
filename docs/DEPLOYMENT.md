@@ -2,7 +2,7 @@
 
 This configuration uses your existing URLs:
 
-- Backend: https://diyaprosoft-lms-4.onrender.com
+- Backend: https://diyaprosoft-lms-2.onrender.com
 - Frontend: https://diyaprosoft-lms.vercel.app
 - Login: https://diyaprosoft-lms.vercel.app/login
 
@@ -43,8 +43,8 @@ Deploy the backend, then open:
 
 | URL | Expected response |
 | --- | --- |
-| https://diyaprosoft-lms-4.onrender.com/ | `Server is running` (200, plain text) |
-| https://diyaprosoft-lms-4.onrender.com/api/health | `{"status":"ok","service":"Diyaprosoft LMS"}` when MongoDB is connected |
+| https://diyaprosoft-lms-2.onrender.com/ | `Server is running` (200, plain text) |
+| https://diyaprosoft-lms-2.onrender.com/api/health | `{"status":"ok","service":"Diyaprosoft LMS"}` when MongoDB is connected |
 
 The root is a process liveness response. The health endpoint reports database readiness and returns 503 when disconnected. The startup entry point waits for the initial database connection before opening the listening port.
 
@@ -67,13 +67,13 @@ VITE_API_BASE_URL=/api
 
 This is also the code's default. Replace any old value that points at localhost or directly at the Render domain. Vite embeds this public value at build time, so redeploy the frontend after changing it. No server secrets belong in Vercel's frontend variables. Keep development dependencies installed for the Vite build.
 
-The first rewrite forwards `/api/:path*` to `https://diyaprosoft-lms-4.onrender.com/api/:path*`. The following SPA rewrite serves `index.html` for routes such as `/login`, `/admin`, and `/student/exams`, including direct navigation and browser refresh. Static build assets are served normally.
+The first rewrite forwards `/api/:path*` to `https://diyaprosoft-lms-2.onrender.com/api/:path*`. The following SPA rewrite serves `index.html` for routes such as `/login`, `/admin`, and `/student/exams`, including direct navigation and browser refresh. Static build assets are served normally.
 
 Requests follow this path:
 
 ```text
 Browser -> https://diyaprosoft-lms.vercel.app/api/...
-Vercel  -> https://diyaprosoft-lms-4.onrender.com/api/...
+Vercel  -> https://diyaprosoft-lms-2.onrender.com/api/...
 ```
 
 The browser receives its session cookie on the frontend host through this proxy. Cookies remain HTTP-only, Secure in production, and SameSite=Lax, with the same attributes on logout. This supports browsers that block third-party cookies. Login, saved answers, management imports, and CSV/Excel downloads all use `/api`; authentication responses are marked `no-store` and external rewrite caching is disabled by the API response header.
@@ -86,7 +86,7 @@ After the Vercel redeployment:
 4. Sign in as a student using the register number and DOB entered by the administrator, then sign out.
 5. Check a management export/import and an assigned exam using your normal accounts/data.
 
-The public deployment checks performed during this update found the existing backend healthy at `/api/health`; its root and the frontend's `/login` returned 404 before these changes were deployed. Local tests do not modify those hosted services.
+The backend URL was updated to `https://diyaprosoft-lms-2.onrender.com` on 30 October 2026. A read-only check of its `/api/health` endpoint returned 200 with `status: "ok"`. Redeploy Vercel with the updated rewrite to use this backend. Earlier checks of the original deployment found its root and the frontend's `/login` returning 404 before the routing changes were deployed. Local tests do not modify those hosted services.
 
 ## Optional: direct cross-site API calls
 
@@ -94,7 +94,7 @@ The Vercel proxy above is the supplied configuration. For another host without p
 
 ```dotenv
 # Frontend build environment
-VITE_API_BASE_URL=https://diyaprosoft-lms-4.onrender.com/api
+VITE_API_BASE_URL=https://diyaprosoft-lms-2.onrender.com/api
 # Backend environment (both services must use HTTPS)
 COOKIE_SAME_SITE=none
 NODE_ENV=production
