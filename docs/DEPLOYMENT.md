@@ -56,7 +56,7 @@ Set the Vercel project's **Root Directory to the repository root** (leave the fi
 | --- | --- |
 | Framework Preset | Vite |
 | Install Command | `npm ci --include=dev` |
-| Build Command | `npm run build` |
+| Build Command | `npm run build:vercel` |
 | Output Directory | `client/dist` |
 
 In Vercel's environment variables, set:
@@ -65,7 +65,7 @@ In Vercel's environment variables, set:
 VITE_API_BASE_URL=/api
 ```
 
-This is also the code's default. Replace any old value that points at localhost or directly at the Render domain. Vite embeds this public value at build time, so redeploy the frontend after changing it. No server secrets belong in Vercel's frontend variables. Keep development dependencies installed for the Vite build.
+This is also the code's default. Replace any old value that points at localhost or directly at the Render domain. The supplied `build:vercel` command explicitly sets `/api` for the Vite build, overriding stale dashboard or dotenv values. Normal local `npm run build` still supports a configured API base for other hosting arrangements. Vite embeds this public value at build time, so redeploy the frontend after changing it. No server secrets belong in Vercel's frontend variables. Keep development dependencies installed for the Vite build.
 
 The first rewrite forwards `/api/:path*` to `https://diyaprosoft-lms-2.onrender.com/api/:path*`. The following SPA rewrite serves `index.html` for routes such as `/login`, `/admin`, and `/student/exams`, including direct navigation and browser refresh. Static build assets are served normally.
 
@@ -88,9 +88,24 @@ After the Vercel redeployment:
 
 The backend URL was updated to `https://diyaprosoft-lms-2.onrender.com` on 30 October 2026. A read-only check of its `/api/health` endpoint returned 200 with `status: "ok"`. Redeploy Vercel with the updated rewrite to use this backend. Earlier checks of the original deployment found its root and the frontend's `/login` returning 404 before the routing changes were deployed. Local tests do not modify those hosted services.
 
+## Fixing the reported CORS / Failed to fetch error
+
+The reported console requests went directly to the previous backend hostname. A client build with an absolute `VITE_API_BASE_URL` bypasses the Vercel proxy; changing source code alone does not update a previously published bundle. The local client setting also contained an `onrender.co` hostname typo. The local setting is now `/api`, and the Vercel build command forces `/api` even when an old hosting environment variable is present.
+
+Apply these settings to the hosting dashboards and deploy the updated branch:
+
+1. In **Render > Environment**, set `CLIENT_ORIGIN=https://diyaprosoft-lms.vercel.app`, `NODE_ENV=production`, `COOKIE_SAME_SITE=lax`, `SERVE_CLIENT=false`, and `TRUST_PROXY=1`. Save and redeploy the existing backend. Updating `server/.env` locally does not update Render. A public preflight check found the new API healthy but missing `Access-Control-Allow-Origin` for this frontend, so its current allowed-origin setting needs correcting. The API also checks request origins on mutations when accessed through the proxy.
+2. In **Vercel > Settings**, leave **Root Directory** empty so the root `vercel.json` is read. It uses **Install Command** `npm ci --include=dev`, **Build Command** `npm run build:vercel`, and **Output Directory** `client/dist`. Set `VITE_API_BASE_URL=/api` for Production and any Preview environments you use. Deploy the updated branch to Production; an old deployment cannot pick up new environment values.
+3. Confirm the project's **Domains** tab lists `diyaprosoft-lms.vercel.app` and points to the current production deployment. Read-only checks during this error investigation received Vercel 404 responses for both `/login` and `/api/health` at that domain. If it remains 404, correct the domain/project/deployment association before attempting login.
+4. Once deployed, open `/api/health` on the frontend domain and confirm it returns the backend JSON. Open `/login` and refresh with Ctrl+Shift+R. The browser Network tab should show login requests going to `https://diyaprosoft-lms.vercel.app/api/auth/...`. It should not call Render directly with this configuration.
+
+For local development, keep `client/.env` at `VITE_API_BASE_URL=/api`, use development settings in `server/.env`, restart `npm run dev`, and open `http://localhost:5173`. No data needs reseeding to fix routing or CORS.
+
 ## Optional: direct cross-site API calls
 
 The Vercel proxy above is the supplied configuration. For another host without proxying, the client supports an absolute `VITE_API_BASE_URL`, including the `/api` suffix:
+
+Use the ordinary `npm run build` for this optional direct configuration. `npm run build:vercel` deliberately selects the proxy instead.
 
 ```dotenv
 # Frontend build environment
