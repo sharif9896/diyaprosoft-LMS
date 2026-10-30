@@ -85,7 +85,7 @@ The React development server proxies `/api` to Express on port 5000. Keep that p
 
 ## Production build locally
 
-For your **Render backend + Vercel frontend**, follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). The included `render.yaml` and root `vercel.json` configure API-only hosting, the `/api` proxy to your Render URL, and React page refreshes. Keep both hosting Root Directory settings at the repository root. Render's root responds **Server is running**; `/api/health` reports MongoDB readiness. Existing data needs no reseeding.
+For your **Render backend + Vercel frontend**, follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). The included `render.yaml` and Vercel configurations set up API-only hosting, the `/api` proxy to your Render URL, and React page refreshes. Use the repository root for Render and `client` for Vercel, with Vercel Output Directory `dist`. Vercel can also build from the repository root using the root configuration and Output Directory `client/dist`. Render's root responds **Server is running**; `/api/health` reports MongoDB readiness. Existing data needs no reseeding.
 
 Vercel uses `npm run build:vercel`, which forces the client API base to `/api` so an old hosting environment variable cannot bypass the proxy. Use `VITE_API_BASE_URL=/api` in `client/.env` for local development too. After changing a local environment file, restart the development server. If the browser reports CORS or `Failed to fetch`, follow the focused troubleshooting steps in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#fixing-the-reported-cors--failed-to-fetch-error).
 

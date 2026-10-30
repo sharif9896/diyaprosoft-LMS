@@ -50,14 +50,19 @@ The root is a process liveness response. The health endpoint reports database re
 
 ## 2. Vercel: existing frontend project
 
-Set the Vercel project's **Root Directory to the repository root** (leave the field empty). The included root `vercel.json` supplies:
+Your deployment log runs npm in `/vercel/path0/client`. Keep Vercel's **Root Directory set to `client`** and use the included `client/vercel.json`:
 
 | Setting | Value |
 | --- | --- |
 | Framework Preset | Vite |
+| Root Directory | `client` |
 | Install Command | `npm ci --include=dev` |
 | Build Command | `npm run build:vercel` |
-| Output Directory | `client/dist` |
+| Output Directory | `dist` |
+
+The client package now defines `build:vercel`, and its builder lives inside `client/scripts`. It does not need the repository's `scripts` folder when deployed from `client`. The client configuration includes both the Render API proxy and the SPA fallback.
+
+Repository-root deployment is also supported: leave Root Directory empty, use the root `vercel.json`, and use Output Directory `client/dist`. Both modes use `npm run build:vercel`, but the output path is relative to the selected root. Render's Root Directory stays empty.
 
 In Vercel's environment variables, set:
 
@@ -95,11 +100,17 @@ The reported console requests went directly to the previous backend hostname. A 
 Apply these settings to the hosting dashboards and deploy the updated branch:
 
 1. In **Render > Environment**, set `CLIENT_ORIGIN=https://diyaprosoft-lms.vercel.app`, `NODE_ENV=production`, `COOKIE_SAME_SITE=lax`, `SERVE_CLIENT=false`, and `TRUST_PROXY=1`. Save and redeploy the existing backend. Updating `server/.env` locally does not update Render. A public preflight check found the new API healthy but missing `Access-Control-Allow-Origin` for this frontend, so its current allowed-origin setting needs correcting. The API also checks request origins on mutations when accessed through the proxy.
-2. In **Vercel > Settings**, leave **Root Directory** empty so the root `vercel.json` is read. It uses **Install Command** `npm ci --include=dev`, **Build Command** `npm run build:vercel`, and **Output Directory** `client/dist`. Set `VITE_API_BASE_URL=/api` for Production and any Preview environments you use. Deploy the updated branch to Production; an old deployment cannot pick up new environment values.
+2. In **Vercel > Settings**, set **Root Directory** to `client` so `client/vercel.json` is read. Use **Install Command** `npm ci --include=dev`, **Build Command** `npm run build:vercel`, and **Output Directory** `dist`. Set `VITE_API_BASE_URL=/api` for Production and any Preview environments you use. Deploy the updated branch to Production; an old deployment cannot pick up new environment values. If you choose the alternative repository-root deployment, leave Root Directory empty and use Output Directory `client/dist`.
 3. Confirm the project's **Domains** tab lists `diyaprosoft-lms.vercel.app` and points to the current production deployment. Read-only checks during this error investigation received Vercel 404 responses for both `/login` and `/api/health` at that domain. If it remains 404, correct the domain/project/deployment association before attempting login.
 4. Once deployed, open `/api/health` on the frontend domain and confirm it returns the backend JSON. Open `/login` and refresh with Ctrl+Shift+R. The browser Network tab should show login requests going to `https://diyaprosoft-lms.vercel.app/api/auth/...`. It should not call Render directly with this configuration.
 
 For local development, keep `client/.env` at `VITE_API_BASE_URL=/api`, use development settings in `server/.env`, restart `npm run dev`, and open `http://localhost:5173`. No data needs reseeding to fix routing or CORS.
+
+## Fixing Missing script: build:vercel
+
+The reported build at commit `e8bbb41` installed dependencies successfully, then failed because npm ran in the `@diyapro/web` workspace and only the root package defined `build:vercel`. The client package now defines the command too, with a self-contained builder and Vercel configuration. Commit and push `client/package.json`, `client/scripts/build-vercel.mjs`, `client/vercel.json`, and the updated root builder before deploying. Redeploy the new commit; rerunning the old commit will still fail.
+
+With Root Directory `client`, the output directory must be `dist`. Keep `VITE_API_BASE_URL=/api` for this proxy setup. The `cache-dir` and `install-scripts` messages in the supplied log are warnings; the fatal error shown is the missing npm script.
 
 ## Optional: direct cross-site API calls
 
