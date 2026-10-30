@@ -3,10 +3,38 @@
 This configuration uses your existing URLs:
 
 - Backend: https://diyaprosoft-lms-2.onrender.com
-- Frontend: https://diyaprosoft-lms.vercel.app
-- Login: https://diyaprosoft-lms.vercel.app/login
+- Frontend: https://diyaprosoft-lms-exams.vercel.app
+- Login: https://diyaprosoft-lms-exams.vercel.app/login
 
 Both hosting projects must use the updated repository. Local edits take effect online after pushing the files to the branch used by each service and redeploying. Existing MongoDB records need no migration or reseeding.
+
+## Current login error: Request origin is not permitted
+
+The active frontend is now `https://diyaprosoft-lms-exams.vercel.app`. A 403 response with this message means its exact origin is missing from the backend's allowed list. In the Render dashboard, select the service whose **public URL is `https://diyaprosoft-lms-2.onrender.com`**, open **Environment**, edit **CLIENT_ORIGIN** to `https://diyaprosoft-lms-exams.vercel.app`, and choose **Save and deploy**. Verify the service's public URL before editing its variables; each Render service has a separate environment. Use the origin without `/login`. Changing a local `.env` or committing `render.yaml` does not automatically update an existing manually configured service's environment.
+
+For this origin-only correction, Render can redeploy its existing build with the changed variable; no frontend rebuild is required. The frontend's `/login` and `/api/health` already returned 200 during verification. Keep Vercel's API base `/api` and the current proxy destination. A 401 response from `/api/auth/me` before signing in is expected. After Render finishes deploying, reload the login page and sign in again. If you deliberately keep more than one frontend, list each complete allowed origin in `CLIENT_ORIGIN`, separated by commas.
+
+### The setting was changed but login still returns 403
+
+The latest screenshots show Render's `diyaprosoft-LMS-4` environment and a Vercel `VITE_API_BASE_URL` value pointing at `https://diyaprosoft-lms-4.onrender.com/`. The application's Vercel builder forces `/api`, and both Vercel configurations forward that path to `https://diyaprosoft-lms-2.onrender.com`. Changing the variable in the other Render service does not change the service selected by these rewrites.
+
+Read-only HTTP checks with `Origin: https://diyaprosoft-lms-exams.vercel.app` found:
+
+| Health endpoint | HTTP status | Access-Control-Allow-Origin |
+| --- | --- | --- |
+| `https://diyaprosoft-lms-4.onrender.com/api/health` | 200 | `https://diyaprosoft-lms-exams.vercel.app` |
+| `https://diyaprosoft-lms-2.onrender.com/api/health` | 200 | Missing |
+| `https://diyaprosoft-lms-exams.vercel.app/api/health` | 200 | Missing |
+
+Keep the requested `-2` backend. Update **that service's** `CLIENT_ORIGIN`, select Save and deploy, and wait for the new deployment to become live. Set the Vercel environment variable to `/api` as well so it matches the proxy configuration. Setting it to the `-4` URL does not override the supplied `build:vercel` command. For this backend environment fix, a frontend rebuild is not required; Vercel environment changes take effect on its next deployment. The saved configuration continues to use the previously requested `-2` hostname.
+
+To check the running backend's permission without logging in or changing any records, run this command in PowerShell:
+
+```powershell
+curl.exe -s -D - -o NUL -H "Origin: https://diyaprosoft-lms-exams.vercel.app" "https://diyaprosoft-lms-2.onrender.com/api/health"
+```
+
+After the correct Render service is deployed, its headers should include `Access-Control-Allow-Origin: https://diyaprosoft-lms-exams.vercel.app`. If the header is still missing, the selected service or running deployment has not received the expected environment value. Once present, refresh the frontend and retry login; credential errors, if any, are separate from this origin rejection.
 
 ## 1. Render: existing Node web service
 
@@ -25,7 +53,7 @@ Set these **Render environment variables** (not Vercel variables):
 
 ```dotenv
 NODE_ENV=production
-CLIENT_ORIGIN=https://diyaprosoft-lms.vercel.app
+CLIENT_ORIGIN=https://diyaprosoft-lms-exams.vercel.app
 SERVE_CLIENT=false
 COOKIE_SAME_SITE=lax
 TRUST_PROXY=1
@@ -77,7 +105,7 @@ The first rewrite forwards `/api/:path*` to `https://diyaprosoft-lms-2.onrender.
 Requests follow this path:
 
 ```text
-Browser -> https://diyaprosoft-lms.vercel.app/api/...
+Browser -> https://diyaprosoft-lms-exams.vercel.app/api/...
 Vercel  -> https://diyaprosoft-lms-2.onrender.com/api/...
 ```
 
@@ -85,8 +113,8 @@ The browser receives its session cookie on the frontend host through this proxy.
 
 After the Vercel redeployment:
 
-1. Open https://diyaprosoft-lms.vercel.app/api/health and confirm the JSON health response. HTML or a Vercel 404 here means the proxy configuration is not active.
-2. Open https://diyaprosoft-lms.vercel.app/login directly and refresh the page.
+1. Open https://diyaprosoft-lms-exams.vercel.app/api/health and confirm the JSON health response. HTML or a Vercel 404 here means the proxy configuration is not active.
+2. Open https://diyaprosoft-lms-exams.vercel.app/login directly and refresh the page.
 3. Sign in as an administrator using your existing email/password, then sign out.
 4. Sign in as a student using the register number and DOB entered by the administrator, then sign out.
 5. Check a management export/import and an assigned exam using your normal accounts/data.
@@ -99,10 +127,10 @@ The reported console requests went directly to the previous backend hostname. A 
 
 Apply these settings to the hosting dashboards and deploy the updated branch:
 
-1. In **Render > Environment**, set `CLIENT_ORIGIN=https://diyaprosoft-lms.vercel.app`, `NODE_ENV=production`, `COOKIE_SAME_SITE=lax`, `SERVE_CLIENT=false`, and `TRUST_PROXY=1`. Save and redeploy the existing backend. Updating `server/.env` locally does not update Render. A public preflight check found the new API healthy but missing `Access-Control-Allow-Origin` for this frontend, so its current allowed-origin setting needs correcting. The API also checks request origins on mutations when accessed through the proxy.
+1. In **Render > Environment**, set `CLIENT_ORIGIN=https://diyaprosoft-lms-exams.vercel.app`, `NODE_ENV=production`, `COOKIE_SAME_SITE=lax`, `SERVE_CLIENT=false`, and `TRUST_PROXY=1`. Save and redeploy the existing backend. Updating `server/.env` locally does not update Render. A public preflight check found the new API healthy but missing `Access-Control-Allow-Origin` for this frontend, so its current allowed-origin setting needs correcting. The API also checks request origins on mutations when accessed through the proxy.
 2. In **Vercel > Settings**, set **Root Directory** to `client` so `client/vercel.json` is read. Use **Install Command** `npm ci --include=dev`, **Build Command** `npm run build:vercel`, and **Output Directory** `dist`. Set `VITE_API_BASE_URL=/api` for Production and any Preview environments you use. Deploy the updated branch to Production; an old deployment cannot pick up new environment values. If you choose the alternative repository-root deployment, leave Root Directory empty and use Output Directory `client/dist`.
-3. Confirm the project's **Domains** tab lists `diyaprosoft-lms.vercel.app` and points to the current production deployment. Read-only checks during this error investigation received Vercel 404 responses for both `/login` and `/api/health` at that domain. If it remains 404, correct the domain/project/deployment association before attempting login.
-4. Once deployed, open `/api/health` on the frontend domain and confirm it returns the backend JSON. Open `/login` and refresh with Ctrl+Shift+R. The browser Network tab should show login requests going to `https://diyaprosoft-lms.vercel.app/api/auth/...`. It should not call Render directly with this configuration.
+3. Confirm the project's **Domains** tab lists `diyaprosoft-lms-exams.vercel.app` and points to the current production deployment. The current domain returned 200 for both `/login` and `/api/health`; older 404 reports were for the previous frontend domain. If you encounter a new 404, check the domain/project/deployment association.
+4. Once deployed, open `/api/health` on the frontend domain and confirm it returns the backend JSON. Open `/login` and refresh with Ctrl+Shift+R. The browser Network tab should show login requests going to `https://diyaprosoft-lms-exams.vercel.app/api/auth/...`. It should not call Render directly with this configuration.
 
 For local development, keep `client/.env` at `VITE_API_BASE_URL=/api`, use development settings in `server/.env`, restart `npm run dev`, and open `http://localhost:5173`. No data needs reseeding to fix routing or CORS.
 
@@ -124,7 +152,7 @@ VITE_API_BASE_URL=https://diyaprosoft-lms-2.onrender.com/api
 # Backend environment (both services must use HTTPS)
 COOKIE_SAME_SITE=none
 NODE_ENV=production
-CLIENT_ORIGIN=https://diyaprosoft-lms.vercel.app
+CLIENT_ORIGIN=https://diyaprosoft-lms-exams.vercel.app
 ```
 
 Both API calls and downloads retain credentials; CORS permits the exact frontend origin and exposes download filenames. Direct requests between unrelated sites depend on the browser permitting third-party cookies, even with SameSite=None and Secure. Use the supplied proxy or same-site custom domains when that policy prevents login. Do not mix this direct configuration with the default Lax cookie setting.

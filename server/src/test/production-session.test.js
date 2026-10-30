@@ -9,7 +9,7 @@ import {connectDatabase} from '../config/database.js';
 import {User} from '../models/index.js';
 
 let mongo;
-const origin='https://diyaprosoft-lms.vercel.app',password='DisposableSessionPassword!2026';
+const origin='https://diyaprosoft-lms-exams.vercel.app',password='DisposableSessionPassword!2026';
 before(async()=>{
   mongo=await MongoMemoryServer.create({instance:{launchTimeout:120000}});
   await connectDatabase(mongo.getUri());

@@ -8,7 +8,7 @@ const environment={
   JWT_SECRET:'disposable-deployment-test-secret-at-least-32-characters',
   NODE_ENV:'production',RENDER:'true',
   RENDER_EXTERNAL_URL:'https://diyaprosoft-lms-2.onrender.com',
-  CLIENT_ORIGIN:'https://diyaprosoft-lms.vercel.app/login,https://diyaprosoft-lms.vercel.app/'
+  CLIENT_ORIGIN:'https://diyaprosoft-lms-exams.vercel.app/login,https://diyaprosoft-lms-exams.vercel.app/'
 };
 
 test('Render configuration uses the assigned port, public host, exact origins and API-only hosting',()=>{
@@ -18,7 +18,7 @@ test('Render configuration uses the assigned port, public host, exact origins an
   assert.equal(cfg.serveClient,false);
   assert.equal(cfg.trustProxy,1);
   assert.equal(cfg.cookieSameSite,'lax');
-  assert.deepEqual(cfg.origins,['https://diyaprosoft-lms.vercel.app','https://diyaprosoft-lms-2.onrender.com']);
+  assert.deepEqual(cfg.origins,['https://diyaprosoft-lms-exams.vercel.app','https://diyaprosoft-lms-2.onrender.com']);
   const local=config({JWT_SECRET:environment.JWT_SECRET});
   assert.equal(local.serveClient,true);
   assert.equal(local.trustProxy,0);
@@ -47,7 +47,7 @@ test('API-only root reports liveness independently of database readiness or an e
 });
 
 test('production CORS permits the configured frontend and rejects mutations from other origins',async()=>{
-  const app=createApp(config(environment)),origin='https://diyaprosoft-lms.vercel.app';
+  const app=createApp(config(environment)),origin='https://diyaprosoft-lms-exams.vercel.app';
   const preflight=await request(app).options('/api/auth/login').set('Origin',origin)
     .set('Access-Control-Request-Method','POST').set('Access-Control-Request-Headers','content-type').expect(204);
   assert.equal(preflight.headers['access-control-allow-origin'],origin);
@@ -58,4 +58,18 @@ test('production CORS permits the configured frontend and rejects mutations from
   assert.equal(denied.headers['access-control-allow-origin'],undefined);
   assert.match(denied.body.message,/origin is not permitted/);
   await request(app).post('/api/auth/logout').set('Origin',origin).expect(200);
+});
+
+test('a frontend domain change requires updating the allowlist before login can reach credential validation',async()=>{
+  const origin='https://diyaprosoft-lms-exams.vercel.app';
+  const outdated=createApp(config({...environment,CLIENT_ORIGIN:'https://diyaprosoft-lms.vercel.app'}));
+  const rejected=await request(outdated).post('/api/auth/student-login').set('Origin',origin).send({}).expect(403);
+  assert.match(rejected.body.message,/Request origin is not permitted/);
+  const app=createApp(config(environment));
+  // Invalid credentials now reach input validation, rather than being blocked by origin.
+  const accepted=await request(app).post('/api/auth/student-login').set('Origin',origin).send({}).expect(400);
+  assert.equal(accepted.headers['access-control-allow-origin'],origin);
+  assert.equal(accepted.headers['access-control-allow-credentials'],'true');
+  await request(app).post('/api/auth/logout').set('Origin',origin).expect(200);
+  await request(app).post('/api/auth/logout').set('Origin','https://diyaprosoft-lms.vercel.app').expect(403);
 });

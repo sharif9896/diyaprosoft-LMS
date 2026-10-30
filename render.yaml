@@ -11,7 +11,7 @@ services:
       - key: SERVE_CLIENT
         value: "false"
       - key: CLIENT_ORIGIN
-        value: https://diyaprosoft-lms.vercel.app
+        value: https://diyaprosoft-lms-exams.vercel.app
       - key: COOKIE_SAME_SITE
         value: lax
       - key: TRUST_PROXY
