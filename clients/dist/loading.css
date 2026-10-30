@@ -1,0 +1,24 @@
+/* Also used by the HTML startup screen before React has loaded. */
+.startup-loading{min-height:100vh;min-height:100dvh;display:grid;place-items:center;background:#f8fafc;margin:0;font-family:system-ui,-apple-system,'Segoe UI',sans-serif}
+.brand-loader{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;min-width:0;color:#475569;text-align:center}
+.brand-loader-art{position:relative;display:grid;place-items:center;width:180px;height:180px;flex-shrink:0;isolation:isolate}
+.brand-loader-halo{position:absolute;inset:0;border:1px solid #e2eaf4;border-radius:50%;background:radial-gradient(circle,#fff 48%,#f0f4f9 100%);animation:emblem-halo 1.6s ease-in-out infinite;z-index:-1}
+.brand-loader-image{display:block;width:150px;height:150px;object-fit:contain;filter:drop-shadow(0 7px 8px #1e3a8a14);transform-origin:center;animation:emblem-scale 1.6s ease-in-out infinite;will-change:transform}
+.brand-loader-copy{display:flex;align-items:center;flex-direction:column;gap:10px;min-width:0}
+.brand-loader-label{font-size:12px;font-weight:600;letter-spacing:.1px;line-height:1.6;color:#475569}
+.brand-loader-dots{display:flex;align-items:center;gap:5px;height:8px}
+.brand-loader-dots i{width:5px;height:5px;border-radius:50%;background:#12386b;animation:emblem-dot 1.2s ease-in-out infinite}
+.brand-loader-dots i:nth-child(2){animation-delay:.15s}.brand-loader-dots i:nth-child(3){animation-delay:.3s}
+.brand-loader--compact{flex-direction:row;gap:13px;text-align:left;justify-content:flex-start}
+.brand-loader--compact .brand-loader-art{width:64px;height:64px}
+.brand-loader--compact .brand-loader-image{width:56px;height:56px}
+.brand-loader--compact .brand-loader-copy{align-items:flex-start;gap:7px}
+.brand-loader--compact .brand-loader-label{font-size:11px}
+.network-activity{position:fixed;right:24px;bottom:24px;z-index:60;pointer-events:none;width:246px;padding:12px 16px;background:#fffffffa;border:1px solid #e2eaf4;border-radius:14px;box-shadow:0 8px 30px #0f172a14}
+.network-activity--dialog{position:sticky;top:0;right:auto;bottom:auto;width:100%;border-radius:0;border:0;border-bottom:1px solid #e2e8f0;background:#f8fafc;box-shadow:none;padding:10px 24px;z-index:3}
+.network-activity--dialog .brand-loader-art{width:46px;height:46px}.network-activity--dialog .brand-loader-image{width:42px;height:42px}
+@keyframes emblem-scale{0%,100%{transform:scale(.9);opacity:.82}50%{transform:scale(1.04);opacity:1}}
+@keyframes emblem-halo{0%,100%{transform:scale(.96);opacity:.7}50%{transform:scale(1.05);opacity:1}}
+@keyframes emblem-dot{0%,80%,100%{opacity:.35;transform:scale(.8)}40%{opacity:1;transform:scale(1.12)}}
+@media(max-width:480px){.brand-loader-art{width:155px;height:155px}.brand-loader-image{width:130px;height:130px}.network-activity{right:12px;bottom:12px;max-width:calc(100vw - 24px)}.network-activity--dialog{right:auto;bottom:auto;max-width:none}.brand-loader--compact .brand-loader-art{width:56px;height:56px}.brand-loader--compact .brand-loader-image{width:48px;height:48px}.network-activity--dialog .brand-loader-art{width:46px;height:46px}.network-activity--dialog .brand-loader-image{width:42px;height:42px}}
+@media(prefers-reduced-motion:reduce){.brand-loader-image,.brand-loader-halo,.brand-loader-dots i{animation:none!important;transform:none;opacity:1;will-change:auto}}

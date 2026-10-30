@@ -1,0 +1,31 @@
+.account-menu{position:relative;flex-shrink:0}
+.account-menu-trigger{display:inline-flex;align-items:center;gap:9px;min-height:42px;padding:5px 9px 5px 5px;border:1px solid #e2e8f0;border-radius:11px;background:#fff;color:#12386b;transition:background .18s,border-color .18s}
+.account-menu-trigger:hover,.account-menu-trigger.is-open{background:#f0f4f9;border-color:#c7d4e5}
+.account-trigger-name{font-size:12px;font-weight:650;max-width:105px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.account-chevron{transition:transform .18s;color:#64748b}.account-menu-trigger.is-open .account-chevron{transform:rotate(180deg)}
+.account-dropdown{position:absolute;right:0;top:calc(100% + 11px);width:245px;max-width:calc(100vw - 32px);padding:7px;background:#fff;border:1px solid #e2e8f0;border-radius:13px;box-shadow:0 12px 38px #0f274322;z-index:45;transform-origin:top right;animation:account-open .17s ease-out}
+.account-menu-heading{padding:10px 10px 13px;border-bottom:1px solid #edf1f6;margin-bottom:5px}
+.account-menu-heading strong,.account-menu-heading span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.account-menu-heading strong{font-size:13px;color:#102e55}.account-menu-heading span{font-size:11px;color:#64748b;margin-top:5px}
+.account-menu-item,.account-dropdown .topbar-logout{display:flex;align-items:center;gap:10px;padding:11px 10px;min-height:42px;width:100%;border:0;border-radius:7px;background:transparent;text-align:left;color:#12386b;font-size:12px;font-weight:550;text-decoration:none}
+.account-menu-item:hover,.account-menu-item:focus-visible{background:#edf2f8;color:#0b2851}
+.account-menu-divider{height:1px;background:#edf1f6;margin:4px 7px}
+@keyframes account-open{from{opacity:0;transform:translateY(-5px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+.dashboard-greeting{display:inline;overflow-wrap:anywhere}
+.greeting-wave{display:inline-flex;position:relative;vertical-align:-5px;margin-left:5px;color:#12386b;transform-origin:70% 85%;animation:greeting-wave 2.8s ease-in-out infinite}
+.greeting-wave>svg:first-child{display:block}
+.wave-trails{position:absolute;width:14px;height:21px;left:-11px;top:2px;opacity:.5}
+@keyframes greeting-wave{0%,55%,100%{transform:rotate(-9deg)}8%{transform:rotate(15deg)}16%{transform:rotate(-14deg)}24%{transform:rotate(14deg)}32%{transform:rotate(-9deg)}40%{transform:rotate(10deg)}48%{transform:rotate(-5deg)}}
+.page-heading>div:first-child{min-width:0}
+.page-heading:has(.dashboard-greeting)>div:first-child{flex:1}
+.page-heading>div>p:has(.motivation-line){margin-top:11px}
+.motivation-line{display:flex;align-items:flex-start;gap:8px;min-height:2.9em;max-width:600px;line-height:1.65;font-size:12px;color:#536d8e;font-weight:450;letter-spacing:.05px}
+.motivation-copy{min-width:0;flex:1;overflow-wrap:anywhere}
+.typing-cursor{display:inline-block;width:2px;height:1.08em;margin-left:3px;vertical-align:-2px;background:#12386b;border-radius:1px;animation:typing-caret .85s step-end infinite}
+.motivation-pause{display:inline-grid;place-items:center;flex-shrink:0;width:22px;height:22px;padding:0;border:1px solid transparent;border-radius:5px;color:#64748b;background:transparent;opacity:.7}
+.motivation-pause:hover,.motivation-pause:focus-visible{background:#eaf0f7;border-color:#c7d4e5;color:#12386b;opacity:1}
+.motivation-line.is-paused .typing-cursor{animation:none;opacity:1}
+.motivation-credit{display:block;font-size:10px;margin-top:2px;color:#12386b}
+.greeting-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@keyframes typing-caret{0%,100%{opacity:1}50%{opacity:0}}
+@media(max-width:760px){.account-trigger-name{display:none}.account-menu-trigger{gap:5px;min-height:38px;padding:4px 6px 4px 4px}.account-dropdown{top:calc(100% + 9px)}.greeting-wave{vertical-align:-6px}.greeting-wave>svg:first-child{width:29px;height:29px}.motivation-line{max-width:100%;min-height:3.3em}}
+@media(prefers-reduced-motion:reduce){.greeting-wave,.typing-cursor,.account-dropdown{animation:none!important}.account-menu-trigger,.account-chevron{transition:none}}

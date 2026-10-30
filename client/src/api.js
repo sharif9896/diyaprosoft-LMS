@@ -1,9 +1,14 @@
 import {beginRequest} from './loading-state.js';
+
+// Configure the deployed API via VITE_API_BASE_URL.
+// An empty value preserves same-origin /api requests.
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+const apiUrl = (path) => `${API_BASE_URL}/api${path.startsWith('/') ? path : `/${path}`}`;
 export async function api(path,options={}) {
   const finish=beginRequest(path,options.method||'GET');
   try {
     const isForm=options.body instanceof FormData;
-    const response=await fetch(`/api${path}`,{credentials:'include',...options,headers:{...(!isForm&&options.body?{'Content-Type':'application/json'}:{}),...options.headers},body:options.body&&!isForm?JSON.stringify(options.body):options.body});
+    const response=await fetch(apiUrl(path),{credentials:'include',...options,headers:{...(!isForm&&options.body?{'Content-Type':'application/json'}:{}),...options.headers},body:options.body&&!isForm?JSON.stringify(options.body):options.body});
     const data=await response.json().catch(()=>({message:'The server returned an invalid response.'}));
     if(!response.ok){const error=new Error(data.message||'Request failed.');error.status=response.status;error.data=data;throw error;}return data;
   } finally {finish();}
@@ -11,7 +16,7 @@ export async function api(path,options={}) {
 export async function download(path,fallback='export.csv') {
   const finish=beginRequest(path);
   try {
-    const response=await fetch(`/api${path}`,{credentials:'include'});if(!response.ok){const data=await response.json();throw new Error(data.message||'Download failed.');}
+    const response=await fetch(apiUrl(path),{credentials:'include'});if(!response.ok){const data=await response.json();throw new Error(data.message||'Download failed.');}
     const blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=response.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1]||fallback;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   } finally {finish();}
 }
