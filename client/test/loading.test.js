@@ -31,6 +31,22 @@ test('API loading remains active until the response body is read and clears on H
   } finally {globalThis.fetch=originalFetch;}
 });
 
+test('API requests retain session credentials, query strings and multipart uploads through the production proxy',async()=>{
+  const originalFetch=globalThis.fetch,calls=[];
+  globalThis.fetch=async(url,options)=>{calls.push({url,options});return {ok:true,json:async()=>({ok:true})};};
+  try {
+    await api('/admin/students?page=2');
+    const file=new FormData();file.append('file',new Blob(['code,title\nT1,Test course\n']),'courses.csv');
+    await api('/admin/courses/import',{method:'POST',body:file});
+    assert.equal(calls[0].url,'/api/admin/students?page=2');
+    assert.equal(calls[0].options.credentials,'include');
+    assert.equal(calls[1].url,'/api/admin/courses/import');
+    assert.equal(calls[1].options.credentials,'include');
+    assert.equal(calls[1].options.body,file);
+    assert.equal(calls[1].options.headers['Content-Type'],undefined);
+  } finally {globalThis.fetch=originalFetch;}
+});
+
 test('network errors release activity; quiet answer saving does not display a global loader',async()=>{
   const originalFetch=globalThis.fetch;
   globalThis.fetch=async()=>{throw new Error('Network unavailable');};

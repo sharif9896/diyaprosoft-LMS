@@ -85,6 +85,8 @@ The React development server proxies `/api` to Express on port 5000. Keep that p
 
 ## Production build locally
 
+For your **Render backend + Vercel frontend**, follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). The included `render.yaml` and root `vercel.json` configure API-only hosting, the `/api` proxy to your Render URL, and React page refreshes. Keep both hosting Root Directory settings at the repository root. Render's root responds **Server is running**; `/api/health` reports MongoDB readiness. Existing data needs no reseeding.
+
 ```sh
 npm run build
 npm start
@@ -166,6 +168,8 @@ Use `node scripts/ui-smoke.mjs --greetings-only` to verify both account menus, p
 
 Run `node scripts/ui-smoke.mjs --signin-only` for student/admin login modes, incorrect DOB, manual student creation, CSV imports, student settings and mobile sign-in. Run `npm run test:student-login -w server` for authentication, credential updates, legacy accounts, spreadsheet round trips and the shared login request limit.
 
+Run `node scripts/ui-smoke.mjs --deployment` to exercise the complete browser workflow through a separate local frontend proxy and API-only backend using production cookie settings. It uses disposable data and never sends test traffic to Render. Deployment settings and the public verification URLs are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
 ## Project layout
 
 ```text
@@ -201,7 +205,7 @@ See [docs/API.md](docs/API.md). The browser uses HTTP-only cookies and same-orig
 
 Answers save after a 650 ms debounce. A lost connection may prevent the latest unsaved choice from reaching the server; the exam screen displays the save status. The timer continues while a student is offline or away. Only answers saved before expiry count after the deadline. Review flags are temporary UI state; saved answers persist across reloads.
 
-Session lifetime is 8 hours. Admin password changes and administrator corrections to student register numbers or DOBs invalidate older sessions. Mutating requests from unapproved browser origins are rejected. The server sets HTTP security headers and rate-limits sign-in attempts. Configure reverse-proxy trust explicitly if you deploy behind a proxy; it is intentionally not trusted by default.
+Session lifetime is 8 hours. Admin password changes and administrator corrections to student register numbers or DOBs invalidate older sessions. Mutating requests from unapproved browser origins are rejected. The server sets HTTP security headers and rate-limits sign-in attempts. `TRUST_PROXY` configures a fixed number of trusted proxy hops: 0 locally and 1 by default on Render. The Vercel deployment uses a same-origin `/api` proxy with Secure, HTTP-only, SameSite=Lax cookies. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for hosting variables and the optional direct API configuration.
 
 ## Recreate the source ZIP
 

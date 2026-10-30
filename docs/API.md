@@ -6,11 +6,13 @@ Errors have `{ "message": "Readable error" }`. Typical statuses: 400 invalid dat
 
 Implementation folders and MVC responsibilities are documented in [ARCHITECTURE.md](ARCHITECTURE.md). The refactor retains these endpoint paths and payloads.
 
+For API-only hosting (`SERVE_CLIENT=false`, the Render default), `GET /` returns plain text `Server is running` with status 200. This route is outside `/api`. `GET /api/health` returns 200 with `status: "ok"` when MongoDB is connected, or 503 with `status: "unavailable"` when disconnected. See [DEPLOYMENT.md](DEPLOYMENT.md) for the supplied Vercel proxy and production session configuration.
+
 ## Account routes
 
 | Method | Path | Body / response |
 | --- | --- | --- |
-| GET | `/health` | Service/database readiness; public |
+| GET | `/health` | Service/database readiness; public; 200 ready, 503 unavailable |
 | POST | `/auth/login` | Admin only: `{email,password}` → `{user}` + cookie |
 | POST | `/auth/student-login` | `{registerNumber,dateOfBirth:"YYYY-MM-DD"}`; active student only; `{user}` + cookie |
 | POST | `/auth/logout` | Clears cookie |

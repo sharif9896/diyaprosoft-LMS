@@ -8,7 +8,7 @@ fs.mkdirSync(artifacts,{recursive:true});
 // A fresh staging folder prevents moved or deleted source files reappearing in the ZIP.
 const staging=path.join(fs.mkdtempSync(path.join(artifacts,'package-')),'Diyaprosoft-LMS');
 fs.mkdirSync(staging,{recursive:true});
-for(const name of ['client','server','scripts','docs','samples','package.json','package-lock.json','README.md','.gitignore','.dockerignore','Dockerfile','compose.yaml']){
+for(const name of ['client','server','scripts','docs','samples','package.json','package-lock.json','README.md','.gitignore','.dockerignore','Dockerfile','compose.yaml','render.yaml','vercel.json']){
   const source=path.join(root,name);if(!fs.existsSync(source))continue;
   fs.cpSync(source,path.join(staging,name),{recursive:true,filter:src=>!src.split(path.sep).some(p=>['node_modules','dist','.cache','artifacts','test-results'].includes(p))&&!['.env'].includes(path.basename(src))});
 }

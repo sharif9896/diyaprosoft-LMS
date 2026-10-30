@@ -2,6 +2,7 @@ import {AppError} from '../utils/domain.js';
 
 export const apiRequestGuard=cfg=>(req,res,next)=>{
   res.set('Cache-Control','no-store');
+  res.set('x-vercel-enable-rewrite-caching','0');
   if(!['GET','HEAD','OPTIONS'].includes(req.method)&&req.get('origin')&&!cfg.origins.includes(req.get('origin'))){
     return next(new AppError(403,'Request origin is not permitted.'));
   }

@@ -6,8 +6,8 @@ import mongoose from "mongoose";
 const cfg = config();
 try {
   await connectDatabase(cfg.mongoUri);
-  const server = createApp(cfg).listen(cfg.port, () =>
-    console.log(`Diyaprosoft LMS API: http://localhost:${cfg.port}`),
+  const server = createApp(cfg).listen(cfg.port, cfg.host, () =>
+    console.log(`Diyaprosoft LMS API listening on ${cfg.host}:${cfg.port}`),
   );
   let sweeping = false;
   const timer = setInterval(async () => {

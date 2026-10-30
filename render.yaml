@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: diyaprosoft-lms-api
+    runtime: node
+    buildCommand: npm ci --omit=dev && npm run build -w server
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SERVE_CLIENT
+        value: "false"
+      - key: CLIENT_ORIGIN
+        value: https://diyaprosoft-lms.vercel.app
+      - key: COOKIE_SAME_SITE
+        value: lax
+      - key: TRUST_PROXY
+        value: "1"
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true

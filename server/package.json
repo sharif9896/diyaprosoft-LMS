@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch src/index.js",
+    "build": "node --check src/index.js",
     "start": "node src/index.js",
     "seed": "node src/seed.js",
-    "test": "node --test src/test/domain.test.js src/test/transfers.test.js",
-    "test:integration": "node --test src/test/api.test.js src/test/result-visibility.test.js src/test/student-login.test.js",
+    "test": "node --test src/test/domain.test.js src/test/transfers.test.js src/test/deployment.test.js",
+    "test:integration": "node --test src/test/api.test.js src/test/result-visibility.test.js src/test/student-login.test.js src/test/production-session.test.js",
     "test:visibility": "node --test src/test/result-visibility.test.js",
     "test:student-login": "node --test src/test/student-login.test.js"
   },

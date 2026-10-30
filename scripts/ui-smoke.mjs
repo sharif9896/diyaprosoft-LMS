@@ -5,7 +5,8 @@ import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
 import {once} from 'node:events';
-import {createServer} from 'node:http';
+import {createServer,request as proxyRequest} from 'node:http';
+import express from 'express';
 import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
@@ -21,12 +22,13 @@ const appearanceOnly=process.argv.includes('--appearance-only');
 const enhancementsOnly=process.argv.includes('--enhancements-only');
 const greetingsOnly=process.argv.includes('--greetings-only');
 const signinOnly=process.argv.includes('--signin-only');
+const deployment=process.argv.includes('--deployment');
 const output=path.join(root,'.cache','ui');fs.mkdirSync(output,{recursive:true});
 const candidates=[process.env.BROWSER_BINARY,'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe','C:/Program Files/Google/Chrome/Application/chrome.exe'].filter(Boolean);
 const browserBinary=candidates.find(p=>fs.existsSync(p));
 if(!browserBinary)throw new Error('Set BROWSER_BINARY to an installed Chrome/Edge/Chromium executable.');
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-let mongo,server,browser,socket,command;const checks=[];
+let mongo,server,backend,browser,socket,command;const checks=[];
 let holdApi=false;const heldApi=[];
 function releaseApi(fail=false){holdApi=false;for(const {res,run} of heldApi.splice(0)){if(res.destroyed||res.writableEnded)continue;if(fail){res.writeHead(503,{'Content-Type':'application/json'});res.end(JSON.stringify({message:'Temporary test connection failure.'}));}else run();}}
 try{
@@ -42,8 +44,32 @@ try{
   }else{
     await seedDatabase({adminEmail:'ui-admin@example.com',adminPassword:password,studentEmail:'ui-student@example.com',studentDateOfBirth:'2005-01-15'});
   }
-  const cfg={secret:randomBytes(48).toString('hex'),production:false,origins:[]};
-  const app=createApp(cfg);server=createServer((req,res)=>{if(holdApi&&req.url.startsWith('/api/'))heldApi.push({req,res,run:()=>app(req,res)});else app(req,res);}).listen(0,'127.0.0.1');await once(server,'listening');const base=`http://127.0.0.1:${server.address().port}`;cfg.origins.push(base);
+  const cfg={secret:randomBytes(48).toString('hex'),production:deployment,serveClient:!deployment,trustProxy:deployment?1:0,origins:[]};
+  const app=createApp(cfg);
+  let frontend=app;
+  if(deployment){
+    // Exercise the Vercel topology locally. Never forward tests to the hosted API.
+    backend=createServer(app).listen(0,'127.0.0.1');await once(backend,'listening');
+    const backendBase=`http://127.0.0.1:${backend.address().port}`;
+    assert.equal(await (await fetch(backendBase)).text(),'Server is running');
+    frontend=express();
+    frontend.use((req,res,next)=>{
+      if(!/^\/api(?:\/|\?|$)/.test(req.url))return next();
+      const upstream=proxyRequest(backendBase+req.url,{method:req.method,headers:{...req.headers,'x-forwarded-for':req.socket.remoteAddress,'x-forwarded-proto':'https'}},response=>{
+        res.writeHead(response.statusCode,response.headers);response.pipe(res);
+      });
+      upstream.on('error',()=>{if(res.headersSent)res.destroy();else res.status(502).end('Test proxy failed.');});
+      req.pipe(upstream);
+    });
+    frontend.use(express.static(path.join(root,'client/dist')));
+    frontend.get('/{*path}',(req,res)=>res.sendFile(path.join(root,'client/dist/index.html')));
+  }
+  server=createServer((req,res)=>{if(holdApi&&req.url.startsWith('/api/'))heldApi.push({req,res,run:()=>frontend(req,res)});else frontend(req,res);}).listen(0,'127.0.0.1');await once(server,'listening');const base=`http://127.0.0.1:${server.address().port}`;cfg.origins.push(base);
+  if(deployment){
+    assert.equal((await fetch(base+'/api/health')).status,200);
+    assert.match(await (await fetch(base+'/login')).text(),/id="root"/);
+    checks.push('Separate API root status, proxied database readiness and direct login-page navigation');console.log('PASS:',checks.at(-1));
+  }
   const profile=fs.mkdtempSync(path.join(output,'browser-'));
   browser=spawn(browserBinary,['--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check','--remote-debugging-port=0',`--user-data-dir=${profile}`,'about:blank'],{stdio:'ignore',windowsHide:true});
   let debugPort;for(let i=0;i<240;i++){try{debugPort=Number(fs.readFileSync(path.join(profile,'DevToolsActivePort'),'utf8').split('\n')[0]);if(debugPort)break;}catch{}await delay(250);}
@@ -62,6 +88,12 @@ try{
     if(email==='ui-admin@example.com'){await click('Administrator',"document.querySelector('.signin-modes')");await input('input[name=email]',email);await input('input[name=password]',password);}
     else {await click('Student',"document.querySelector('.signin-modes')");await input('input[name=registerNumber]',studentOnly||appearanceOnly||enhancementsOnly||greetingsOnly||signinOnly?'UI-STUDENT':'STU-001');await input('input[name=dateOfBirth]','2005-01-15');}
     await evaluate("document.querySelector('.login-form form').requestSubmit()");
+    if(deployment){
+      await wait("document.querySelector('.app-layout')");
+      const {cookies}=await command('Network.getCookies',{urls:[base]});
+      const session=cookies.find(cookie=>cookie.name==='lms_session');
+      assert.ok(session?.secure&&session?.httpOnly&&session?.sameSite==='Lax','Proxy login must retain the production session cookie on the frontend host.');
+    }
   };
   const navigate=async(href)=>{await evaluate(`document.querySelector('a[href="${href}"]').click()`);};
   const shot=async(name)=>{const r=await command('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});fs.writeFileSync(path.join(output,name+'.png'),Buffer.from(r.data,'base64'));};
@@ -315,5 +347,5 @@ try{
   console.log(JSON.stringify({status:'passed',checks,screenshots:path.relative(root,output)},null,2));
 }finally{
   releaseApi();
-  if(command)await command('Browser.close').catch(()=>{});socket?.close();browser?.kill();if(server)await new Promise(resolve=>server.close(resolve));await mongoose.disconnect();if(mongo)await mongo.stop();
+  if(command)await command('Browser.close').catch(()=>{});socket?.close();browser?.kill();if(server)await new Promise(resolve=>server.close(resolve));if(backend)await new Promise(resolve=>backend.close(resolve));await mongoose.disconnect();if(mongo)await mongo.stop();
 }
