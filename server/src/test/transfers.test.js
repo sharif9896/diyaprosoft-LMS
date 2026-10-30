@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import ExcelJS from 'exceljs';
 import {parse} from 'csv-parse/sync';
-import {exportFile} from '../src/transfers.js';
+import {exportFile} from '../services/transfers.service.js';
 
 test('CSV and Excel result files preserve numeric scores and neutralize formula text',async()=>{
   const row={studentId:'S101',studentName:'=SUM(1,1)',email:'student@example.com',courseCode:'WEB101',examCode:'TEST1',examTitle:'Web Fundamentals',attemptNumber:1,score:9,maxScore:10,percentage:90,passed:true,startedAt:'2026-10-28T04:00:00.000Z',submittedAt:'2026-10-28T04:15:00.000Z'};

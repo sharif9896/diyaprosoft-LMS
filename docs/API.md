@@ -4,6 +4,8 @@ Base path: `/api`. Requests and responses use JSON except multipart imports and 
 
 Errors have `{ "message": "Readable error" }`. Typical statuses: 400 invalid data, 401 unauthenticated, 403 unauthorized, 404 missing resource, 409 linked-history or uniqueness conflict.
 
+Implementation folders and MVC responsibilities are documented in [ARCHITECTURE.md](ARCHITECTURE.md). The refactor retains these endpoint paths and payloads.
+
 ## Account routes
 
 | Method | Path | Body / response |

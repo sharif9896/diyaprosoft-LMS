@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { parse as parseCsv } from 'csv-parse/sync';
-import { assert,safeCell } from './domain.js';
+import { assert,safeCell } from '../utils/domain.js';
 export const columns={
   students:['studentId','name','email','dateOfBirth','phone','department','status','courseCodes'],
   courses:['code','title','description','instructor','status'],

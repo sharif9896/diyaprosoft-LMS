@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {grade,cleanAnswers,publicAttempt,safeCell,canAccessExam,shuffle} from '../src/domain.js';
-import {parse,schemas} from '../src/validation.js';
+import {grade,cleanAnswers,publicAttempt,safeCell,canAccessExam,shuffle} from '../utils/domain.js';
+import {parse,schemas} from '../validators/index.js';
 const questions=[{questionId:'q1',correctAnswer:'A',text:'First',options:{A:'Yes',B:'No',C:'Maybe',D:'Other'},explanation:'Private'},{questionId:'q2',correctAnswer:'D',text:'Second',options:{A:'1',B:'2',C:'3',D:'4'}}];
 test('grading counts only exact answers, gives no credit for omitted answers, and enforces the pass boundary',()=>{assert.deepEqual(grade(questions,{q1:'A'},2,50),{correctCount:1,score:2,maxScore:4,percentage:50,passed:true});assert.equal(grade(questions,{q1:'B'},2,50).passed,false);assert.equal(grade(questions,{q1:'A',q2:'D'},3,100).score,6);});
 test('pass/fail uses the unrounded percentage',()=>{const qs=Array.from({length:6},(_,i)=>({questionId:String(i),correctAnswer:'A'}));assert.equal(grade(qs,{'0':'A'},1,17).passed,false);});

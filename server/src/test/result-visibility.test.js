@@ -4,8 +4,9 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import {MongoMemoryServer} from 'mongodb-memory-server';
-import {createApp} from '../src/app.js';
-import {connectDatabase,User,Course,Exam,Question,Attempt,PlatformSettings} from '../src/models.js';
+import {createApp} from '../app.js';
+import {connectDatabase} from '../config/database.js';
+import {User,Course,Exam,Question,Attempt,PlatformSettings} from '../models/index.js';
 
 test('admin release setting protects every student result response and persists across app instances', {timeout:240000},async()=>{
   let mongo;

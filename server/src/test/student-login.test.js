@@ -5,8 +5,9 @@ import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import ExcelJS from 'exceljs';
 import {MongoMemoryServer} from 'mongodb-memory-server';
-import {createApp} from '../src/app.js';
-import {connectDatabase,User} from '../src/models.js';
+import {createApp} from '../app.js';
+import {connectDatabase} from '../config/database.js';
+import {User} from '../models/index.js';
 
 let mongo,app,admin,legacy;
 const password='IsolatedAdminPassword!2026';

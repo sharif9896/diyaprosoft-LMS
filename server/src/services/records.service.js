@@ -1,7 +1,27 @@
-import {User,Course,Exam,Question,Attempt} from './models.js';
-import {assert} from './domain.js';
-import {schemas,parse} from './validation.js';
+import {User,Course,Exam,Question,Attempt} from '../models/index.js';
+import {assert,AppError} from '../utils/domain.js';
+import {schemas,parse} from '../validators/index.js';
+import {readImport} from './transfers.service.js';
 export const models={students:User,courses:Course,exams:Exam,questions:Question};
+export async function recordExportRows(entity) {
+  const records=await models[entity].find(entity==='students'?{role:'student'}:{}).select(entity==='students'?'+dateOfBirth':'').sort({createdAt:-1});
+  return Promise.all(records.map(record=>flattenRecord(entity,record)));
+}
+export async function listRecords(entity,search='') {
+  const records=await recordExportRows(entity),query=String(search||'').toLowerCase();
+  return query?records.filter(record=>Object.entries(record).filter(([key])=>!['_id','password','dateOfBirth'].includes(key)).some(([,value])=>String(value||'').toLowerCase().includes(query))):records;
+}
+export async function importRecords(entity,file) {
+  let rows;
+  try {rows=await readImport(file,entity);}
+  catch(error) {throw new AppError(400,error.message||'Cannot read this file. Use a valid CSV or XLSX template.');}
+  const report={total:rows.length,created:0,updated:0,failed:0,errors:[]};
+  for(let index=0;index<rows.length;index++){
+    try {const {action}=await saveRecord(entity,rows[index],null,{upsert:true});report[action]++;}
+    catch(error) {report.failed++;report.errors.push({row:index+2,message:error.code===11000?'A unique identifier is already used by a different record.':error.message});}
+  }
+  return report;
+}
 export async function saveRecord(entity,input,id=null,{upsert=false}={}) {
   const data=parse(schemas[entity],input), Model=models[entity];
   let existing=id?await Model.findById(id).select(entity==='students'?'+tokenVersion +dateOfBirth':''):null;

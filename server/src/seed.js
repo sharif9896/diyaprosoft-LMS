@@ -1,9 +1,10 @@
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
-import {config} from './config.js';
-import {connectDatabase,User,Course,Exam,Question,Attempt} from './models.js';
-import {grade} from './domain.js';
-import {validBirthDate} from './birth-dates.js';
+import {config} from './config/env.js';
+import {connectDatabase} from './config/database.js';
+import {User,Course,Exam,Question,Attempt} from './models/index.js';
+import {grade} from './utils/domain.js';
+import {validBirthDate} from './utils/birth-dates.js';
 export async function seedDatabase({adminEmail,adminPassword,studentEmail,studentDateOfBirth='2005-01-15'}){
   if(!adminEmail||!studentEmail||!adminPassword||adminPassword.length<12)throw new Error('Set seed emails and an admin password (12+ characters) in server/.env.');
   if(!validBirthDate(studentDateOfBirth))throw new Error('Set SEED_STUDENT_DOB to a real date in YYYY-MM-DD format.');

@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-export const serverDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+export const serverDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 dotenv.config({ path: path.join(serverDir, '.env'), quiet: true });
 export function config() {
   const secret = process.env.JWT_SECRET || '';

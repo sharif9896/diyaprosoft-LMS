@@ -169,27 +169,31 @@ Run `node scripts/ui-smoke.mjs --signin-only` for student/admin login modes, inc
 ## Project layout
 
 ```text
-client/                 React + Vite frontend
-  src/pages/            Admin, student, profile/settings screens
-  src/components.jsx    Shared UI and data hooks
-  src/api.js            HTTP client and file downloads
-  src/styles.css        Responsive application styles
+client/                         React view layer (Vite)
+  src/pages/                    Admin, student, profile/settings screens
+  src/components.jsx            Shared UI and data hooks
+  src/api.js                    HTTP client and downloads
 server/
-  src/app.js            Express routes and middleware
-  src/models.js         MongoDB/Mongoose models and indexes
-  src/records.js        Validated record CRUD and imports
-  src/attempts.js       Timing, attempt creation, finalization
-  src/settings.js       Persistent student result visibility policy
-  src/transfers.js      CSV/XLSX templates, import and export
-  src/domain.js         Grading, access, safe serialization
-  src/auth.js           Sessions and role authorization
-  src/seed.js           Non-destructive demo initialization
-  test/                 Unit and integration tests
-docs/                   API and import documentation
-samples/                Example import CSVs
-scripts/package.mjs     Recreate the source ZIP
-compose.yaml            Local app + MongoDB containers
+  src/
+    index.js                    Server startup, expiry worker and shutdown
+    app.js                      Express composition and React static hosting
+    config/                     Environment and database connection
+    models/                     Separate Mongoose models and indexes
+    controllers/                HTTP request/response handlers
+    routes/                     API endpoints and middleware composition
+    services/                   Authentication, records, exams, reports, transfers
+    middleware/                 Authentication, authorization, uploads and errors
+    validators/                 Zod request and record schemas
+    utils/                      Grading, date validation and shared helpers
+    seed.js                     Non-destructive demo initialization
+    test/                       All server unit and integration tests
+docs/                           API, architecture and import documentation
+samples/                        Example import CSVs
+scripts/package.mjs             Recreate the source ZIP
+compose.yaml                    Local app + MongoDB containers
 ```
+
+The server follows MVC with the React client as its view layer. Tests live in `server/src/test`. The existing `npm test` and `npm run test:integration` commands use that location. API paths, database collections and startup commands remain compatible; no reseeding or database migration is required. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full directory map and responsibilities.
 
 ## API and implementation notes
 
@@ -205,4 +209,4 @@ Session lifetime is 8 hours. Admin password changes and administrator correction
 node scripts/package.mjs
 ```
 
-Creates `artifacts/Diyaprosoft-LMS-MERN.zip` with source, dependency lockfile, docs, sample templates, and configuration examples. It excludes credentials, dependencies, generated frontend files, caches, and test runtime data. Install dependencies and build after extracting.
+Creates `artifacts/Diyaprosoft-LMS-MERN.zip` from a fresh staging directory with source, dependency lockfile, docs, sample templates, and configuration examples. It excludes credentials, dependencies, generated frontend files, caches, and test runtime data. Install dependencies and build after extracting.

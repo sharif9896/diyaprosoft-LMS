@@ -3,7 +3,10 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const staging=path.join(root,'artifacts','package','Diyaprosoft-LMS');
+const artifacts=path.join(root,'artifacts');
+fs.mkdirSync(artifacts,{recursive:true});
+// A fresh staging folder prevents moved or deleted source files reappearing in the ZIP.
+const staging=path.join(fs.mkdtempSync(path.join(artifacts,'package-')),'Diyaprosoft-LMS');
 fs.mkdirSync(staging,{recursive:true});
 for(const name of ['client','server','scripts','docs','samples','package.json','package-lock.json','README.md','.gitignore','.dockerignore','Dockerfile','compose.yaml']){
   const source=path.join(root,name);if(!fs.existsSync(source))continue;
@@ -12,5 +15,8 @@ for(const name of ['client','server','scripts','docs','samples','package.json','
 const destination=path.join(root,'artifacts','Diyaprosoft-LMS-MERN.zip');
 if(process.platform==='win32'){
   execFileSync('powershell.exe',['-NoProfile','-Command',`Compress-Archive -LiteralPath '${staging.replaceAll("'","''")}' -DestinationPath '${destination.replaceAll("'","''")}' -Force`],{stdio:'inherit'});
-}else execFileSync('zip',['-qr',destination,'Diyaprosoft-LMS'],{cwd:path.dirname(staging),stdio:'inherit'});
+}else {
+  fs.rmSync(destination,{force:true});
+  execFileSync('zip',['-qr',destination,'Diyaprosoft-LMS'],{cwd:path.dirname(staging),stdio:'inherit'});
+}
 console.log(destination);

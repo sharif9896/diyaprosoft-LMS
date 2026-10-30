@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import {validBirthDate} from './birth-dates.js';
+import {validBirthDate} from '../utils/birth-dates.js';
 const text=(max=200)=>z.string().trim().min(1).max(max);
 const optional=(max=500)=>z.string().trim().max(max).default('');
 const codes=z.array(text()).max(200).default([]);
@@ -7,6 +7,10 @@ const number=(min,max,def)=>z.coerce.number().int().min(min).max(max).default(de
 const date=z.union([z.string().datetime({offset:true}),z.date(),z.literal(''),z.null()]).optional().transform(v=>v?new Date(v):null);
 export const birthDateSchema=z.string().trim().refine(validBirthDate,'Enter a real date of birth in YYYY-MM-DD format, from 1900 through today.');
 export const studentLoginSchema=z.object({registerNumber:text(50),dateOfBirth:birthDateSchema}).strict();
+export const adminLoginSchema=z.object({email:z.string().email().toLowerCase(),password:z.string().min(1).max(128)});
+export const passwordSchema=z.object({currentPassword:z.string().min(1).max(128),newPassword:z.string().min(12).max(128)});
+export const settingsSchema=z.object({studentResultsVisible:z.boolean()}).strict();
+export const answerRevisionSchema=z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
 export const schemas={
   students:z.object({name:text(100),email:z.string().trim().email().toLowerCase(),studentId:text(50),dateOfBirth:birthDateSchema,phone:optional(30),department:optional(100),status:z.enum(['active','inactive']).default('active'),courseCodes:codes}).strict(),
   courses:z.object({code:text(50).transform(s=>s.toUpperCase()),title:text(),description:optional(2000),instructor:optional(100),status:z.enum(['active','archived']).default('active')}),

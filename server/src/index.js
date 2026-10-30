@@ -1,7 +1,7 @@
-import { config } from "./config.js";
-import { connectDatabase } from "./models.js";
+import { config } from "./config/env.js";
+import { connectDatabase } from "./config/database.js";
 import { createApp } from "./app.js";
-import { expireAttempts } from "./attempts.js";
+import { expireAttempts } from "./services/attempts.service.js";
 import mongoose from "mongoose";
 const cfg = config();
 try {

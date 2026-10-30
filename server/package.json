@@ -7,10 +7,10 @@
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "seed": "node src/seed.js",
-    "test": "node --test test/domain.test.js test/transfers.test.js",
-    "test:integration": "node --test test/api.test.js test/result-visibility.test.js test/student-login.test.js",
-    "test:visibility": "node --test test/result-visibility.test.js",
-    "test:student-login": "node --test test/student-login.test.js"
+    "test": "node --test src/test/domain.test.js src/test/transfers.test.js",
+    "test:integration": "node --test src/test/api.test.js src/test/result-visibility.test.js src/test/student-login.test.js",
+    "test:visibility": "node --test src/test/result-visibility.test.js",
+    "test:student-login": "node --test src/test/student-login.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

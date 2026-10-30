@@ -1,4 +1,4 @@
-import {PlatformSettings} from './models.js';
+import {PlatformSettings} from '../models/index.js';
 
 // Read on every request so a change applies to existing attempts and sessions.
 export async function getSettings() {
